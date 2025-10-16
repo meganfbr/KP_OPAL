@@ -14,7 +14,12 @@ class Course extends Model
     protected $fillable = [
         'name',
         'sks',
-        'prodi_id'
+        'prodi_id',
+        'software_requirements'
+    ];
+
+    protected $casts = [
+        'software_requirements' => 'array'
     ];
 
     /**

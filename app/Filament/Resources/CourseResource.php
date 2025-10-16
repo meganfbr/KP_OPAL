@@ -59,18 +59,26 @@ class CourseResource extends Resource
                     ])
                     ->helperText('Pilih program studi atau buat baru'),
 
-                Forms\Components\Select::make('software')
+                Forms\Components\Select::make('software_requirements')
                     ->label('Software yang Dibutuhkan')
-                    ->relationship(
-                        'software',
-                        'nama',
-                        modifyQueryUsing: fn (Builder $query) => $query->whereNotNull('nama')
-                    )
+                    ->options(function () {
+                        // Ambil software dari inventaris yang ada, bukan dari software_details
+                        return \App\Models\Inventory::where('inventoriable_type', 'App\Models\SoftwareDetail')
+                            ->whereNotNull('nama_barang')
+                            ->where('nama_barang', '!=', '')
+                            ->with('laboratorium')
+                            ->get()
+                            ->mapWithKeys(function ($inventory) {
+                                $labName = $inventory->laboratorium?->ruang ?? 'Lab tidak diketahui';
+                                return [$inventory->nama_barang => "{$inventory->nama_barang} (Lab: {$labName})"];
+                            })
+                            ->unique()
+                            ->toArray();
+                    })
                     ->multiple()
                     ->searchable()
-                    ->preload()
-                    ->getOptionLabelFromRecordUsing(fn (SoftwareDetail $record) => $record->nama ?: 'Software Tidak Diketahui')
-                    ->helperText('Pilih software yang dibutuhkan untuk mata kuliah ini'),
+                    ->helperText('Pilih software yang dibutuhkan. Hanya software yang tersedia di inventaris lab yang ditampilkan.')
+                    ->optionsLimit(50),
             ]);
     }
 
@@ -95,11 +103,18 @@ class CourseResource extends Resource
                     ->sortable()
                     ->placeholder('Tidak ada'),
 
-                Tables\Columns\TextColumn::make('software_count')
-                    ->label('Jumlah Software')
-                    ->counts('software')
+                Tables\Columns\TextColumn::make('software_requirements')
+                    ->label('Software Dibutuhkan')
                     ->badge()
-                    ->color('info'),
+                    ->formatStateUsing(function ($record) {
+                        if (empty($record->software_requirements)) {
+                            return 'Tidak ada';
+                        }
+                        return collect($record->software_requirements)->join(', ');
+                    })
+                    ->color('info')
+                    ->limit(50)
+                    ->wrap(),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Dibuat')
@@ -119,6 +134,13 @@ class CourseResource extends Resource
                     ->relationship('prodi', 'name')
                     ->searchable()
                     ->preload(),
+
+                Tables\Filters\SelectFilter::make('software')
+                    ->label('Software')
+                    ->relationship('software', 'nama')
+                    ->searchable()
+                    ->preload()
+                    ->multiple(),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
