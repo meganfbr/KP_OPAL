@@ -103,18 +103,23 @@ class CourseResource extends Resource
                     ->sortable()
                     ->placeholder('Tidak ada'),
 
-                Tables\Columns\TextColumn::make('software_requirements')
+                Tables\Columns\TextColumn::make('software_count')
                     ->label('Software Dibutuhkan')
                     ->badge()
-                    ->formatStateUsing(function ($record) {
+                    ->getStateUsing(function ($record) {
                         if (empty($record->software_requirements)) {
-                            return 'Tidak ada';
+                            return '0';
                         }
-                        return collect($record->software_requirements)->join(', ');
+                        $count = count($record->software_requirements);
+                        return $count . ' Software';
                     })
                     ->color('info')
-                    ->limit(50)
-                    ->wrap(),
+                    ->tooltip(function ($record) {
+                        if (empty($record->software_requirements)) {
+                            return 'Tidak ada software yang dibutuhkan';
+                        }
+                        return 'Software: ' . collect($record->software_requirements)->join(', ');
+                    }),
 
                 Tables\Columns\TextColumn::make('created_at')
                     ->label('Dibuat')
@@ -135,12 +140,28 @@ class CourseResource extends Resource
                     ->searchable()
                     ->preload(),
 
-                Tables\Filters\SelectFilter::make('software')
+                Tables\Filters\SelectFilter::make('software_requirements')
                     ->label('Software')
-                    ->relationship('software', 'nama')
+                    ->options(function () {
+                        // Ambil daftar software dari inventaris untuk filter
+                        return \App\Models\Inventory::where('inventoriable_type', 'App\Models\SoftwareDetail')
+                            ->whereNotNull('nama_barang')
+                            ->where('nama_barang', '!=', '')
+                            ->pluck('nama_barang', 'nama_barang')
+                            ->unique()
+                            ->toArray();
+                    })
                     ->searchable()
-                    ->preload()
-                    ->multiple(),
+                    ->multiple()
+                    ->query(function (Builder $query, array $data) {
+                        if (! empty($data['values'])) {
+                            $query->where(function ($query) use ($data) {
+                                foreach ($data['values'] as $software) {
+                                    $query->orWhereJsonContains('software_requirements', $software);
+                                }
+                            });
+                        }
+                    }),
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
