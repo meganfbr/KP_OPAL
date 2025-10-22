@@ -23,6 +23,8 @@ class LecturerResource extends Resource
 
     protected static ?int $navigationSort = 2;
 
+    protected static ?string $modelLabel = 'Dosen';
+
     public static function form(Form $form): Form
     {
         return $form

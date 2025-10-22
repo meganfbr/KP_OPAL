@@ -23,6 +23,8 @@ class CourseResource extends Resource
 
     protected static ?string $navigationGroup = 'Penjadwalan';
 
+    protected static ?string $modelLabel = 'Mata Kuliah';
+
     protected static ?int $navigationSort = 3;
 
     public static function form(Form $form): Form
