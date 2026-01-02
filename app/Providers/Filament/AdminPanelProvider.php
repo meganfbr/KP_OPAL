@@ -12,7 +12,6 @@ use App\Filament\Resources\SoftwareInventoryResource;
 use App\Filament\Resources\ProdiResource;
 use App\Filament\Resources\LecturerResource;
 use App\Filament\Resources\CourseResource;
-use App\Filament\Resources\ScheduleResource;
 use App\Filament\Pages\ScheduleTimetable;
 use App\Filament\Widgets\CalendarWidget;
 use App\Filament\Widgets\KalenderAkademikWidget;
@@ -54,9 +53,6 @@ class AdminPanelProvider extends PanelProvider
             ->databaseNotificationsPolling('3s')
             ->favicon(url('images/udinus.png'))
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\\Filament\\Resources')
-            ->resources([
-                \App\Filament\Resources\ScheduleResource::class, // Daftarkan manual untuk memastikan ter-load
-            ])
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\\Filament\\Pages')
             ->pages([
                 Dashboard::class, // Menggunakan Dashboard kustom kita
@@ -130,15 +126,7 @@ class AdminPanelProvider extends PanelProvider
                         ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\CourseResource::getRouteBaseName() . '.*'));
                 }
 
-                // Manajemen Jadwal
-                if ($user->hasRole('super_admin') || $user->can('view_schedule')) {
-                    $penjadwalanItems[] = NavigationItem::make('Manajemen Jadwal')
-                        ->icon('heroicon-o-calendar-days')
-                        ->url(\App\Filament\Resources\ScheduleResource::getUrl())
-                        ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\ScheduleResource::getRouteBaseName() . '.*'));
-                }
-
-                // Timetable Visual
+                // Timetable Visual (satu-satunya cara mengelola jadwal)
                 if ($user->hasRole('super_admin') || $user->can('page_ScheduleTimetable')) {
                     $penjadwalanItems[] = NavigationItem::make('Timetable Visual')
                         ->icon('heroicon-o-table-cells')
