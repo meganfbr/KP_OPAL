@@ -262,6 +262,35 @@ class ScheduleWizard extends Page implements HasForms
                     return $slotStartTime >= $sessionRange['start'] && $slotStartTime < $sessionRange['end'];
                 });
 
+                // Define break times to exclude
+                $breakTimes = [
+                    ['start' => '12:00', 'end' => '12:30'], // Istirahat siang
+                    ['start' => '15:50', 'end' => '16:20'], // Istirahat sore
+                    ['start' => '18:00', 'end' => '18:30'], // Istirahat malam
+                ];
+                $maxEndTime = '21:00';
+
+                // Filter out slots that overlap with break times or exceed max end time
+                $filteredSlots = $filteredSlots->filter(function ($slot) use ($service, $course, $breakTimes, $maxEndTime) {
+                    $slotStart = Carbon::parse($slot->start_time)->format('H:i');
+                    $slotEnd = $service->calculateEndTime($slot, $course->sks);
+
+                    // Check if slot ends after max time
+                    if ($slotEnd > $maxEndTime) {
+                        return false;
+                    }
+
+                    // Check if slot overlaps with any break time
+                    foreach ($breakTimes as $break) {
+                        // Slot overlaps if: slot starts before break ends AND slot ends after break starts
+                        if ($slotStart < $break['end'] && $slotEnd > $break['start']) {
+                            return false;
+                        }
+                    }
+
+                    return true;
+                });
+
                 if ($filteredSlots->isNotEmpty()) {
                     $isPriority = $course->prodi_id
                         ? $lab->priorityProdis->contains('id', $course->prodi_id)
