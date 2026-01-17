@@ -97,47 +97,17 @@ class LaboratoriumResource extends Resource
                     ])
                     ->columns(3),
 
-                Forms\Components\Section::make('Software & Prioritas')
-                    ->description('Pengaturan software dan prioritas program studi')
+                Forms\Components\Section::make('Prioritas Program Studi')
+                    ->description('Program studi yang diprioritaskan untuk lab ini')
                     ->schema([
-                        Forms\Components\Select::make('software')
-                            ->label('Software Terinstal')
-                            ->relationship(
-                                name: 'software',
-                                titleAttribute: 'nama',
-                                modifyQueryUsing: fn($query) => $query->whereNotNull('code')
-                            )
-                            ->getOptionLabelFromRecordUsing(fn($record) => "[{$record->code}] {$record->nama}")
-                            ->multiple()
-                            ->preload()
-                            ->searchable()
-                            ->helperText('Pilih software dari daftar master. Pastikan software sudah terdaftar di menu Daftar Software.')
-                            ->createOptionForm([
-                                Forms\Components\TextInput::make('code')
-                                    ->label('Kode Software')
-                                    ->required()
-                                    ->unique('software_details', 'code')
-                                    ->maxLength(50)
-                                    ->placeholder('PREMIERE'),
-                                Forms\Components\TextInput::make('nama')
-                                    ->label('Nama Software')
-                                    ->required()
-                                    ->maxLength(255)
-                                    ->placeholder('Adobe Premiere Pro'),
-                            ])
-                            ->createOptionUsing(function (array $data) {
-                                return \App\Models\SoftwareDetail::create($data)->id;
-                            }),
-
                         Forms\Components\Select::make('priorityProdis')
                             ->label('Prioritas Program Studi')
                             ->relationship('priorityProdis', 'name')
                             ->multiple()
                             ->preload()
                             ->searchable()
-                            ->helperText('Program studi yang diprioritaskan untuk lab ini'),
-                    ])
-                    ->columns(2),
+                            ->helperText('Lab ini akan diprioritaskan untuk penjadwalan mata kuliah dari prodi yang dipilih'),
+                    ]),
             ]);
     }
 

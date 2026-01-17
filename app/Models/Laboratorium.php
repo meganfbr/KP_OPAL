@@ -89,7 +89,7 @@ class Laboratorium extends Model
     {
         return $this->belongsToMany(Prodi::class, 'lab_prodi_priority')
             ->withPivot('priority_level')
-            ->orderBy('pivot_priority_level');
+            ->orderByPivot('priority_level');
     }
 
     /**
