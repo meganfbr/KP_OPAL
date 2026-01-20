@@ -48,12 +48,16 @@ class ScheduleResource extends Resource
                             ->required()
                             ->live()
                             ->dehydrated(false)
-                            ->afterStateUpdated(function (Set $set) {
-                                $set('course_id', null);
-                                $set('laboratorium_id', null);
-                                $set('time_slot_id', null);
-                                $set('kelompok_code', null);
-                                $set('kelompok', null);
+                            ->afterStateUpdated(function (Set $set, $old, $state, ?Schedule $record) {
+                                // Only reset if user actually changed the value (not during hydration)
+                                // And only if not editing an existing record with data
+                                if ($old !== null && $old !== $state) {
+                                    $set('course_id', null);
+                                    $set('laboratorium_id', null);
+                                    $set('time_slot_id', null);
+                                    $set('kelompok_code', null);
+                                    $set('kelompok', null);
+                                }
                             })
                             ->afterStateHydrated(function ($component, $state, ?Schedule $record) {
                                 if (!$state && $record?->course?->prodi_id) {
@@ -85,11 +89,14 @@ class ScheduleResource extends Resource
                             ->required()
                             ->live()
                             ->disabled(fn(Get $get) => !$get('prodi_filter'))
-                            ->afterStateUpdated(function (Set $set) {
-                                $set('laboratorium_id', null);
-                                $set('time_slot_id', null);
-                                $set('kelompok_code', null);
-                                $set('kelompok', null);
+                            ->afterStateUpdated(function (Set $set, $old, $state) {
+                                // Only reset if user actually changed the value
+                                if ($old !== null && $old !== $state) {
+                                    $set('laboratorium_id', null);
+                                    $set('time_slot_id', null);
+                                    $set('kelompok_code', null);
+                                    $set('kelompok', null);
+                                }
                             })
                             ->helperText(fn(Get $get) => !$get('prodi_filter') ? 'Pilih prodi terlebih dahulu' : 'Pilih mata kuliah'),
 
@@ -201,8 +208,11 @@ class ScheduleResource extends Resource
                             ])
                             ->required()
                             ->live()
-                            ->afterStateUpdated(function (Set $set) {
-                                $set('time_slot_id', null);
+                            ->afterStateUpdated(function (Set $set, $old, $state) {
+                                // Only reset if user actually changed the value
+                                if ($old !== null && $old !== $state) {
+                                    $set('time_slot_id', null);
+                                }
                             })
                             ->disabled(fn(Get $get) => !$get('laboratorium_id')),
 
@@ -213,21 +223,34 @@ class ScheduleResource extends Resource
                                 $day = $get('day');
                                 $courseId = $get('course_id');
 
-                                if (!$labId || !$day || !$courseId) {
+                                if (!$labId || !$day) {
                                     return [];
                                 }
 
-                                $course = Course::find($courseId);
                                 $lab = Laboratorium::find($labId);
-
-                                if (!$course || !$lab) {
+                                if (!$lab) {
                                     return [];
                                 }
 
                                 $service = app(SchedulingService::class);
                                 $excludeId = $record?->id;
 
-                                return $service->getSlotOptionsForForm($lab, $day, $course->sks, $excludeId);
+                                // Use course SKS if available, otherwise default to 2
+                                $course = $courseId ? Course::find($courseId) : null;
+                                $sks = $course?->sks ?? 2;
+
+                                $options = $service->getSlotOptionsForForm($lab, $day, $sks, $excludeId);
+
+                                // If editing and record has time_slot_id, ensure it's in options
+                                if ($record?->time_slot_id && $record?->timeSlot) {
+                                    $slot = $record->timeSlot;
+                                    $key = $slot->id;
+                                    if (!isset($options[$key])) {
+                                        $options[$key] = Carbon::parse($slot->start_time)->format('H:i') . ' - Slot #' . $slot->slot_number;
+                                    }
+                                }
+
+                                return $options;
                             })
                             ->required()
                             ->live()

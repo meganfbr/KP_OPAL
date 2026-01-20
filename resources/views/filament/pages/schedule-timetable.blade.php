@@ -98,13 +98,13 @@
                                         </td>
 
                                         @if($schedule)
-                                            <td class="px-4 py-2 text-gray-900 dark:text-white border-r border-gray-300 dark:border-gray-600 font-medium bg-blue-50 dark:bg-blue-900/20">
-                                                {{ strtoupper($schedule->course?->name ?? '-') }}
+                                            <td class="px-4 py-2 border-r border-gray-300 dark:border-gray-600 font-medium {{ $schedule->course ? 'text-gray-900 dark:text-white bg-blue-50 dark:bg-blue-900/20' : 'text-orange-600 dark:text-orange-400 bg-orange-50 dark:bg-orange-900/20' }}">
+                                                {{ $schedule->course ? strtoupper($schedule->course->name) : '(BELUM DIISI)' }}
                                             </td>
-                                            <td class="px-4 py-2 text-gray-700 dark:text-gray-300 border-r border-gray-300 dark:border-gray-600 bg-blue-50 dark:bg-blue-900/20">
+                                            <td class="px-4 py-2 text-gray-700 dark:text-gray-300 border-r border-gray-300 dark:border-gray-600 {{ $schedule->course ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-orange-50 dark:bg-orange-900/20' }}">
                                                 {{ $schedule->kelompok ?? '-' }}
                                             </td>
-                                            <td class="px-4 py-2 text-gray-700 dark:text-gray-300 bg-blue-50 dark:bg-blue-900/20">
+                                            <td class="px-4 py-2 text-gray-700 dark:text-gray-300 {{ $schedule->course ? 'bg-blue-50 dark:bg-blue-900/20' : 'bg-orange-50 dark:bg-orange-900/20' }}">
                                                 {{ strtoupper($schedule->lecturer?->name ?? '-') }}
                                             </td>
                                         @else
@@ -136,6 +136,123 @@
                 <p class="text-gray-500 dark:text-gray-400 max-w-md mx-auto">
                     Silakan pilih laboratorium di atas untuk melihat jadwal penggunaan ruang dalam format tabel.
                 </p>
+            </div>
+        @endif
+
+        {{-- Import Preview Section --}}
+        @if($showImportPreview && !empty($importResults))
+            <div class="fixed inset-0 bg-black/50 z-50 overflow-y-auto" wire:click.self="cancelImport">
+                <div class="flex min-h-full items-center justify-center p-4">
+                    <div class="bg-white dark:bg-gray-800 rounded-xl shadow-2xl max-w-6xl w-full">
+                        <div class="p-6 border-b border-gray-200 dark:border-gray-700 flex justify-between items-center sticky top-0 bg-white dark:bg-gray-800 z-10">
+                            <div>
+                                <h3 class="text-xl font-bold text-gray-900 dark:text-white">Preview Import Jadwal</h3>
+                                <p class="text-sm text-gray-500">Matkul tidak ditemukan = null. Dosen baru = auto-create.</p>
+                            </div>
+                            <button wire:click="cancelImport" class="text-gray-400 hover:text-gray-600">
+                                <x-heroicon-o-x-mark class="w-6 h-6"/>
+                            </button>
+                        </div>
+
+                        <div class="p-6">
+                        @foreach($importResults as $labName => $results)
+                            <div class="mb-6">
+                                <h4 class="font-semibold text-lg mb-3 text-gray-800 dark:text-gray-200">
+                                    <x-heroicon-o-building-office class="w-5 h-5 inline mr-1"/>
+                                    {{ $labName }}
+                                    <span class="text-sm font-normal text-gray-500">({{ count($results) }} baris)</span>
+                                </h4>
+
+                                <div class="overflow-x-auto border rounded-lg">
+                                    <table class="w-full text-sm">
+                                        <thead class="bg-gray-50 dark:bg-gray-700">
+                                            <tr>
+                                                <th class="px-3 py-2 text-left">Status</th>
+                                                <th class="px-3 py-2 text-left">Hari</th>
+                                                <th class="px-3 py-2 text-left">Jadwal</th>
+                                                <th class="px-3 py-2 text-left">Mata Kuliah</th>
+                                                <th class="px-3 py-2 text-left">Kelompok</th>
+                                                <th class="px-3 py-2 text-left">Dosen</th>
+                                                <th class="px-3 py-2 text-left">Keterangan</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach($results as $index => $result)
+                                                <tr class="border-t {{ $result['status'] === 'error' ? 'bg-red-50 dark:bg-red-900/20' : ($result['status'] === 'warning' ? 'bg-yellow-50 dark:bg-yellow-900/20' : 'bg-green-50 dark:bg-green-900/20') }}">
+                                                    <td class="px-3 py-2">
+                                                        @if($result['status'] === 'valid')
+                                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                                ✓ Valid
+                                                            </span>
+                                                        @elseif($result['status'] === 'warning')
+                                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-yellow-100 text-yellow-800">
+                                                                ⚠ Warning
+                                                            </span>
+                                                        @else
+                                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                                                                ✗ Error
+                                                            </span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="px-3 py-2">{{ $result['day'] }}</td>
+                                                    <td class="px-3 py-2 font-mono text-xs">{{ $result['jadwal'] }}</td>
+                                                    <td class="px-3 py-2">
+                                                        @if($result['course_id'])
+                                                            {{ $result['course_name'] ?? $result['mata_kuliah'] }}
+                                                        @else
+                                                            <span class="text-gray-400 italic">{{ $result['mata_kuliah'] }} (null)</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="px-3 py-2">{{ $result['kelompok'] }}</td>
+                                                    <td class="px-3 py-2">
+                                                        {{ $result['lecturer_name'] ?? $result['dosen'] }}
+                                                        @if(!empty($result['create_lecturer']))
+                                                            <span class="text-xs text-blue-600">(Baru)</span>
+                                                        @endif
+                                                    </td>
+                                                    <td class="px-3 py-2 text-xs">
+                                                        @foreach($result['errors'] as $error)
+                                                            <div class="text-red-600">{{ $error }}</div>
+                                                        @endforeach
+                                                        @foreach($result['warnings'] as $warning)
+                                                            <div class="text-yellow-600">{{ $warning }}</div>
+                                                        @endforeach
+                                                    </td>
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+
+                    <div class="p-6 border-t border-gray-200 dark:border-gray-700 flex justify-between">
+                        <div class="text-sm text-gray-500">
+                            @php
+                                $totalValid = 0;
+                                $totalError = 0;
+                                foreach($importResults as $results) {
+                                    foreach($results as $r) {
+                                        if($r['status'] === 'error') $totalError++;
+                                        else $totalValid++;
+                                    }
+                                }
+                            @endphp
+                            <span class="text-green-600 font-medium">{{ $totalValid }} valid</span> •
+                            <span class="text-red-600 font-medium">{{ $totalError }} error</span>
+                        </div>
+                        <div class="flex gap-3">
+                            <button wire:click="cancelImport" class="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200">
+                                Batal
+                            </button>
+                            <button wire:click="confirmImport" class="px-4 py-2 text-white bg-primary-600 rounded-lg hover:bg-primary-700"
+                                    {{ $totalValid === 0 ? 'disabled' : '' }}>
+                                Import {{ $totalValid }} Jadwal
+                            </button>
+                        </div>
+                    </div>
+                </div>
             </div>
         @endif
     </div>
