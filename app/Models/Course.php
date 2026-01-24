@@ -17,7 +17,6 @@ class Course extends Model
         'code',
         'name',
         'sks',
-        'semester',
         'jumlah_mahasiswa',
         'prodi_id',
         'software_requirements'
