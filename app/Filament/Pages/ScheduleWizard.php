@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Imports\BulkScheduleImport;
 use App\Models\Course;
 use App\Models\Laboratorium;
 use App\Models\Lecturer;
@@ -9,6 +10,7 @@ use App\Models\Schedule;
 use App\Models\TimeSlot;
 use App\Services\SchedulingService;
 use Carbon\Carbon;
+use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -18,10 +20,13 @@ use Filament\Forms\Form;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Illuminate\Contracts\View\View;
+use Livewire\WithFileUploads;
+use Maatwebsite\Excel\Facades\Excel;
 
 class ScheduleWizard extends Page implements HasForms
 {
     use InteractsWithForms;
+    use WithFileUploads;
 
     protected static ?string $navigationIcon = 'heroicon-o-sparkles';
 
@@ -44,6 +49,16 @@ class ScheduleWizard extends Page implements HasForms
     public bool $showRecommendations = false;
     public array $recommendations = [];
     public ?string $selectedDay = null;
+
+    // Import state
+    public bool $showImportModal = false;
+    public bool $showImportPreview = false;
+    public $importFile = null;
+    public array $importResults = [];
+    public array $importSummary = [];
+    public array $unplottedSchedules = [];
+    public int $previewPage = 1;
+    public int $perPage = 50;
 
     public function mount(): void
     {
@@ -456,4 +471,189 @@ class ScheduleWizard extends Page implements HasForms
         $courseId = $this->data['course_id'] ?? null;
         return $courseId ? Course::with('prodi')->find($courseId) : null;
     }
+
+    /**
+     * Toggle import modal
+     */
+    public function toggleImportModal(): void
+    {
+        $this->showImportModal = !$this->showImportModal;
+        $this->showImportPreview = false;
+        $this->importResults = [];
+        $this->importSummary = [];
+        $this->unplottedSchedules = [];
+        $this->importFile = null;
+    }
+
+    /**
+     * Process uploaded Excel and generate preview
+     */
+    public function processImport(): void
+    {
+        if (!$this->importFile) {
+            Notification::make()
+                ->title('Error')
+                ->body('Pilih file Excel terlebih dahulu')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        try {
+            $import = new BulkScheduleImport();
+
+            // Get the file path
+            $filePath = $this->importFile->getRealPath();
+
+            Excel::import($import, $filePath);
+
+            $this->importResults = $import->getResults();
+            $this->importSummary = $import->getSummary();
+            $this->unplottedSchedules = $import->getUnplottedSchedules();
+            $this->showImportPreview = true;
+
+            Notification::make()
+                ->title('Preview Siap')
+                ->body("Total {$this->importSummary['total']} jadwal diproses")
+                ->success()
+                ->send();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Error')
+                ->body('Gagal memproses file: ' . $e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    /**
+     * Confirm and save import results
+     */
+    public function confirmImport(): void
+    {
+        if (empty($this->importResults)) {
+            Notification::make()
+                ->title('Error')
+                ->body('Tidak ada data untuk diimport')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        // REPLACE mode: Delete existing schedules first
+        Schedule::truncate();
+
+        $imported = 0;
+        $skipped = 0;
+
+        foreach ($this->importResults as $result) {
+            // Skip error rows (no available slot)
+            if ($result['status'] === 'error') {
+                $skipped++;
+                continue;
+            }
+
+            // Determine sesi based on time
+            $sesi = 'pagi';
+            if ($result['start_time'] && $result['start_time'] >= '18:30') {
+                $sesi = 'malam';
+            } elseif ($result['start_time'] && $result['start_time'] >= '12:30') {
+                $sesi = 'siang';
+            }
+
+            Schedule::create([
+                'course_id' => $result['course_id'],
+                'lecturer_id' => null, // Dosen kosong
+                'laboratorium_id' => $result['laboratorium_id'],
+                'time_slot_id' => $result['time_slot_id'],
+                'kelompok' => $result['kelompok'],
+                'jumlah_siswa' => null,
+                'sesi' => $sesi,
+                'day' => $result['day'],
+                'start_time' => $result['start_time'],
+                'end_time' => $result['end_time'],
+                'duration_slots' => 2, // Default 2 slot untuk 2 SKS
+            ]);
+
+            $imported++;
+        }
+
+        Notification::make()
+            ->title('Import Berhasil')
+            ->body("Berhasil import {$imported} jadwal, {$skipped} dilewati")
+            ->success()
+            ->send();
+
+        // Reset state
+        $this->showImportModal = false;
+        $this->showImportPreview = false;
+        $this->importResults = [];
+        $this->importSummary = [];
+        $this->unplottedSchedules = [];
+        $this->importFile = null;
+    }
+
+    /**
+     * Cancel import and reset state
+     */
+    public function cancelImport(): void
+    {
+        $this->showImportModal = false;
+        $this->showImportPreview = false;
+        $this->importResults = [];
+        $this->importSummary = [];
+        $this->unplottedSchedules = [];
+        $this->importFile = null;
+        $this->previewPage = 1;
+    }
+
+    /**
+     * Go to next page in preview
+     */
+    public function nextPage(): void
+    {
+        $totalPages = ceil(count($this->importResults) / $this->perPage);
+        if ($this->previewPage < $totalPages) {
+            $this->previewPage++;
+        }
+    }
+
+    /**
+     * Go to previous page in preview
+     */
+    public function prevPage(): void
+    {
+        if ($this->previewPage > 1) {
+            $this->previewPage--;
+        }
+    }
+
+    /**
+     * Go to specific page
+     */
+    public function goToPage(int $page): void
+    {
+        $totalPages = ceil(count($this->importResults) / $this->perPage);
+        if ($page >= 1 && $page <= $totalPages) {
+            $this->previewPage = $page;
+        }
+    }
+
+    /**
+     * Get paginated results for preview
+     */
+    public function getPaginatedResults(): array
+    {
+        $offset = ($this->previewPage - 1) * $this->perPage;
+        return array_slice($this->importResults, $offset, $this->perPage);
+    }
+
+    /**
+     * Get total pages
+     */
+    public function getTotalPages(): int
+    {
+        return (int) ceil(count($this->importResults) / $this->perPage);
+    }
 }
+

@@ -1,4 +1,246 @@
 <x-filament-panels::page>
+    {{-- Import Button in Header --}}
+    <div class="flex justify-between items-center mb-6">
+        <div></div>
+        <x-filament::button wire:click="toggleImportModal" color="success" icon="heroicon-o-arrow-up-tray">
+            Import Excel
+        </x-filament::button>
+    </div>
+
+    {{-- Import Modal --}}
+    @if($showImportModal)
+        <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div class="bg-white dark:bg-gray-900 rounded-xl shadow-2xl w-full max-w-6xl max-h-[90vh] overflow-hidden">
+                {{-- Modal Header --}}
+                <div class="flex justify-between items-center p-4 border-b dark:border-gray-700">
+                    <h2 class="text-xl font-bold text-gray-900 dark:text-white">
+                        Import Jadwal dari Excel
+                    </h2>
+                    <button wire:click="cancelImport" class="text-gray-500 hover:text-gray-700">
+                        <x-heroicon-o-x-mark class="w-6 h-6" />
+                    </button>
+                </div>
+
+                {{-- Modal Body --}}
+                <div class="p-6 overflow-y-auto" style="max-height: calc(90vh - 140px);">
+                    @if(!$showImportPreview)
+                        {{-- Upload Section --}}
+                        <div class="space-y-4">
+                            <div class="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-lg">
+                                <h4 class="font-semibold text-blue-800 dark:text-blue-200 mb-2">Format Excel:</h4>
+                                <p class="text-sm text-blue-700 dark:text-blue-300">
+                                    Kolom: <code>Prodi | Kdmk | Nama Mk | Lab | pagi | malam | Kelas | Sks</code>
+                                </p>
+                            </div>
+
+                            <div class="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-lg">
+                                <p class="text-sm text-amber-700 dark:text-amber-300">
+                                    ⚠️ Mode <strong>REPLACE</strong>: Semua jadwal existing akan dihapus!
+                                </p>
+                            </div>
+
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                                    Pilih File Excel (.xlsx, .xls)
+                                </label>
+                                <input type="file" wire:model="importFile" accept=".xlsx,.xls"
+                                    class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-primary-50 file:text-primary-700 hover:file:bg-primary-100" />
+                                
+                                @if($importFile)
+                                    <p class="mt-2 text-sm text-green-600">✓ File dipilih: {{ $importFile->getClientOriginalName() }}</p>
+                                @endif
+                            </div>
+                        </div>
+                    @else
+                        {{-- Preview Section --}}
+                        <div class="space-y-4">
+                            {{-- Summary --}}
+                            <div class="grid grid-cols-4 gap-4">
+                                <div class="bg-gray-100 dark:bg-gray-800 p-4 rounded-lg text-center">
+                                    <div class="text-2xl font-bold text-gray-900 dark:text-white">{{ $importSummary['total'] ?? 0 }}</div>
+                                    <div class="text-sm text-gray-600 dark:text-gray-400">Total</div>
+                                </div>
+                                <div class="bg-green-100 dark:bg-green-900/30 p-4 rounded-lg text-center">
+                                    <div class="text-2xl font-bold text-green-700 dark:text-green-400">{{ $importSummary['success'] ?? 0 }}</div>
+                                    <div class="text-sm text-green-600 dark:text-green-400">OK</div>
+                                </div>
+                                <div class="bg-amber-100 dark:bg-amber-900/30 p-4 rounded-lg text-center">
+                                    <div class="text-2xl font-bold text-amber-700 dark:text-amber-400">{{ $importSummary['warning'] ?? 0 }}</div>
+                                    <div class="text-sm text-amber-600 dark:text-amber-400">Warning</div>
+                                </div>
+                                <div class="bg-red-100 dark:bg-red-900/30 p-4 rounded-lg text-center">
+                                    <div class="text-2xl font-bold text-red-700 dark:text-red-400">{{ $importSummary['error'] ?? 0 }}</div>
+                                    <div class="text-sm text-red-600 dark:text-red-400">Error</div>
+                                </div>
+                            </div>
+
+                            {{-- Unplotted Warning --}}
+                            @if(count($unplottedSchedules) > 0)
+                                <div class="bg-red-50 dark:bg-red-900/20 p-4 rounded-lg">
+                                    <h4 class="font-semibold text-red-800 dark:text-red-200 mb-2">
+                                        ⚠️ {{ count($unplottedSchedules) }} jadwal tidak bisa diplot:
+                                    </h4>
+                                    <div class="overflow-x-auto max-h-48 overflow-y-auto">
+                                        <table class="min-w-full text-sm">
+                                            <thead class="bg-red-100 dark:bg-red-900/40">
+                                                <tr>
+                                                    <th class="px-2 py-1 text-left text-xs font-medium text-red-700 dark:text-red-300">Kelompok</th>
+                                                    <th class="px-2 py-1 text-left text-xs font-medium text-red-700 dark:text-red-300">Mata Kuliah</th>
+                                                    <th class="px-2 py-1 text-left text-xs font-medium text-red-700 dark:text-red-300">SKS</th>
+                                                    <th class="px-2 py-1 text-left text-xs font-medium text-red-700 dark:text-red-300">Alasan</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody class="divide-y divide-red-200 dark:divide-red-800">
+                                                @foreach($unplottedSchedules as $unplotted)
+                                                    <tr>
+                                                        <td class="px-2 py-1 text-red-700 dark:text-red-300">{{ $unplotted['kelompok'] }}</td>
+                                                        <td class="px-2 py-1 text-red-700 dark:text-red-300">{{ Str::limit($unplotted['nama_mk'], 20) }}</td>
+                                                        <td class="px-2 py-1 text-red-700 dark:text-red-300">{{ $unplotted['sks'] }}</td>
+                                                        <td class="px-2 py-1 text-red-600 dark:text-red-400 font-medium">{{ $unplotted['message'] }}</td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            @endif
+
+                            {{-- Preview Table --}}
+                            <div class="overflow-x-auto">
+                                <table class="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+                                    <thead class="bg-gray-50 dark:bg-gray-800">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Status</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Prodi</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Kelompok</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Mata Kuliah</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">SKS</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Hari</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Waktu</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Lab</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase">Keterangan</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody class="bg-white dark:bg-gray-900 divide-y divide-gray-200 dark:divide-gray-700">
+                                        @foreach($this->getPaginatedResults() as $result)
+                                            <tr>
+                                                <td class="px-3 py-2 whitespace-nowrap">
+                                                    @if($result['status'] === 'ok')
+                                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-400">OK</span>
+                                                    @elseif($result['status'] === 'warning')
+                                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400">Warning</span>
+                                                    @else
+                                                        <span class="px-2 py-1 text-xs font-semibold rounded-full bg-red-100 text-red-800 dark:bg-red-900/30 dark:text-red-400">Error</span>
+                                                    @endif
+                                                </td>
+                                                <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-100">{{ $result['prodi_code'] }}</td>
+                                                <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-100">{{ $result['kelompok'] }}</td>
+                                                <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-100">{{ Str::limit($result['nama_mk'], 25) }}</td>
+                                                <td class="px-3 py-2 text-sm whitespace-nowrap">
+                                                    @if(isset($result['sks_db']) && $result['sks_db'] != $result['sks'])
+                                                        <span class="text-amber-600 dark:text-amber-400 font-semibold" title="Excel: {{ $result['sks'] }}, DB: {{ $result['sks_db'] }}">
+                                                            {{ $result['sks'] }} ⚠️
+                                                        </span>
+                                                    @else
+                                                        {{ $result['sks'] }}
+                                                    @endif
+                                                </td>
+                                                <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-100">{{ $result['day'] }}</td>
+                                                <td class="px-3 py-2 text-sm text-gray-900 dark:text-gray-100">{{ $result['start_time'] }} - {{ $result['end_time'] }}</td>
+                                                <td class="px-3 py-2 text-sm whitespace-nowrap">
+                                                    @if($result['laboratorium_name'] !== '-')
+                                                        <span class="{{ ($result['is_priority'] ?? false) ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-gray-600 dark:text-gray-400' }}">
+                                                            {{ $result['laboratorium_name'] }}
+                                                            @if($result['is_priority'] ?? false)
+                                                                <span class="ml-1 px-1.5 py-0.5 text-xs rounded bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-300">★</span>
+                                                            @endif
+                                                        </span>
+                                                    @else
+                                                        -
+                                                    @endif
+                                                </td>
+                                                <td class="px-3 py-2 text-sm text-gray-500 dark:text-gray-400">{{ $result['message'] }}</td>
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
+                                
+                                {{-- Pagination Controls --}}
+                                @if($this->getTotalPages() > 1)
+                                    <div class="flex items-center justify-between mt-4 px-4 py-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                                        <div class="text-sm text-gray-600 dark:text-gray-400">
+                                            Halaman {{ $previewPage }} dari {{ $this->getTotalPages() }} 
+                                            ({{ count($importResults) }} jadwal)
+                                        </div>
+                                        <div class="flex items-center gap-2">
+                                            <button wire:click="prevPage" 
+                                                class="px-3 py-1 text-sm font-medium rounded-lg border
+                                                    {{ $previewPage > 1 
+                                                        ? 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-300 dark:border-gray-600' 
+                                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed border-gray-200 dark:border-gray-700' }}"
+                                                {{ $previewPage <= 1 ? 'disabled' : '' }}>
+                                                ← Sebelumnya
+                                            </button>
+                                            
+                                            {{-- Page numbers --}}
+                                            @php
+                                                $totalPages = $this->getTotalPages();
+                                                $startPage = max(1, $previewPage - 2);
+                                                $endPage = min($totalPages, $previewPage + 2);
+                                            @endphp
+                                            
+                                            @for($page = $startPage; $page <= $endPage; $page++)
+                                                <button wire:click="goToPage({{ $page }})"
+                                                    class="px-3 py-1 text-sm font-medium rounded-lg
+                                                        {{ $page === $previewPage 
+                                                            ? 'bg-primary-600 text-white' 
+                                                            : 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border border-gray-300 dark:border-gray-600' }}">
+                                                    {{ $page }}
+                                                </button>
+                                            @endfor
+                                            
+                                            <button wire:click="nextPage"
+                                                class="px-3 py-1 text-sm font-medium rounded-lg border
+                                                    {{ $previewPage < $this->getTotalPages() 
+                                                        ? 'bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-600 border-gray-300 dark:border-gray-600' 
+                                                        : 'bg-gray-100 dark:bg-gray-800 text-gray-400 cursor-not-allowed border-gray-200 dark:border-gray-700' }}"
+                                                {{ $previewPage >= $this->getTotalPages() ? 'disabled' : '' }}>
+                                                Selanjutnya →
+                                            </button>
+                                        </div>
+                                    </div>
+                                @else
+                                    <p class="text-sm text-gray-500 mt-2 text-center">
+                                        Total {{ count($importResults) }} jadwal
+                                    </p>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
+                </div>
+
+                {{-- Modal Footer --}}
+                <div class="flex justify-end gap-3 p-4 border-t dark:border-gray-700 bg-gray-50 dark:bg-gray-800">
+                    <x-filament::button wire:click="cancelImport" color="gray">
+                        Batal
+                    </x-filament::button>
+                    @if(!$showImportPreview)
+                        <x-filament::button wire:click="processImport" color="primary" wire:loading.attr="disabled">
+                            <span wire:loading wire:target="processImport">Memproses...</span>
+                            <span wire:loading.remove wire:target="processImport">Preview</span>
+                        </x-filament::button>
+                    @else
+                        <x-filament::button wire:click="confirmImport" color="success" wire:loading.attr="disabled">
+                            <span wire:loading wire:target="confirmImport">Mengimport...</span>
+                            <span wire:loading.remove wire:target="confirmImport">Konfirmasi Import</span>
+                        </x-filament::button>
+                    @endif
+                </div>
+            </div>
+        </div>
+    @endif
+
+    {{-- Original Form --}}
     <form wire:submit="findAvailableSlots" class="space-y-6">
         {{ $this->form }}
 
