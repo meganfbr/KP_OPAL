@@ -36,6 +36,7 @@ Dokumentasi teknis tersedia di folder [`docs/`](docs/):
 | ---------------------------------------------------------------- | ---------------------------------------------------------------------------- |
 | [Setup Project](docs/SETUP_PROJECT.md)                           | Panduan instalasi dan konfigurasi                                            |
 | [Penjadwalan Otomatis](docs/DOKUMENTASI_PENJADWALAN_OTOMATIS.md) | Dokumentasi teknis sistem penjadwalan (constraint filtering, Eloquent query) |
+| [Diagram Eloquent Filtering](docs/DIAGRAM_ELOQUENT_FILTERING.md) | Diagram alur 6 tahap filtering dan penjelasan per-step (untuk skripsi)       |
 | [Dynamic Break 3 SKS](docs/DYNAMIC_BREAK_3SKS.md)                | Penjelasan kasus khusus break time untuk matkul 3+ SKS siang                 |
 | [Arsitektur Data Software](docs/ARSITEKTUR_DATA_SOFTWARE.md)     | Arsitektur relasi data software-lab                                          |
 
