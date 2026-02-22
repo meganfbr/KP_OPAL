@@ -728,6 +728,292 @@ Teknik ini diimplementasikan melalui properti `$usedSlotNumbers` yang menyimpan 
 
 Ketika suatu slot berhasil ditempatkan, metode `markSlotUsed()` menambahkan nomor-nomor slot yang ditempati ke array _in-memory_, sehingga pemeriksaan berikutnya akan mengetahui bahwa slot tersebut sudah terisi — meskipun data belum disimpan ke basis data. Pendekatan ini mengurangi jumlah _query_ basis data secara signifikan, dari potensi ribuan _query_ menjadi hanya puluhan _query_ (satu kali per kombinasi laboratorium-hari yang unik).
 
+3. ## **Hasil Penelitian** {#hasil-penelitian}
+
+Pada sub-bab ini disajikan hasil akhir dari pengembangan fitur penjadwalan otomatis pada sistem SIOPAL. Hasil ditampilkan dalam bentuk antarmuka perangkat lunak (_user interface_) yang telah dibangun menggunakan framework Filament pada platform Laravel. Setiap halaman dijelaskan secara naratif mencakup fungsi utama, interaksi pengguna, dan proses yang berlangsung di baliknya.
+
+1. ### **Halaman Dashboard** {#halaman-dashboard}
+
+**[MASUKKAN SCREENSHOT HALAMAN DASHBOARD DI SINI]**
+
+Gambar X\. Halaman Dashboard SIOPAL
+
+Halaman Dashboard merupakan halaman utama yang ditampilkan setelah administrator berhasil melakukan _login_ ke dalam sistem. Halaman ini menyajikan ringkasan statistik operasional laboratorium dalam bentuk _widget_ kartu (_stat cards_) yang terdiri dari lima indikator utama: jumlah laboran yang terdaftar, jumlah laboratorium yang tersedia, jumlah inventaris PC, jumlah inventaris Non-PC, dan jumlah perangkat lunak (_software_) yang tercatat.
+
+Data pada masing-masing kartu statistik diambil secara _real-time_ dari basis data melalui _query_ Eloquent yang dihitung pada kelas `StatsOverviewWidget`. Sebagai contoh, jumlah PC diperoleh dengan memfilter tabel `inventories` berdasarkan tipe `PCDetail`, sedangkan jumlah _software_ diperoleh dengan memfilter berdasarkan tipe `SoftwareDetail`. Pendekatan ini memastikan bahwa data yang ditampilkan selalu mutakhir tanpa memerlukan proses sinkronisasi manual.
+
+Selain kartu statistik, Dashboard juga menampilkan _widget_ kalender akademik yang membantu administrator memantau jadwal perkuliahan secara visual. Seluruh _widget_ pada Dashboard dilindungi oleh sistem otorisasi berbasis _Gate_, sehingga hanya pengguna dengan hak akses yang sesuai yang dapat melihat masing-masing _widget_.
+
+2. ### **Halaman Kelola Data Laboratorium** {#halaman-laboratorium}
+
+**[MASUKKAN SCREENSHOT HALAMAN DAFTAR LABORATORIUM DI SINI]**
+
+Gambar X\. Halaman Daftar Laboratorium
+
+Halaman Kelola Data Laboratorium menampilkan daftar seluruh laboratorium komputer yang terdaftar dalam sistem. Tabel utama menampilkan kolom-kolom: Ruang Laboratorium, Kategori Laboratorium, dan Kapasitas. Pengguna dapat melakukan pencarian berdasarkan nama ruang, memfilter berdasarkan kategori laboratorium, serta melakukan operasi _Create_, _Read_, _Update_, dan _Delete_ (CRUD) pada setiap data laboratorium.
+
+**[MASUKKAN SCREENSHOT FORMULIR EDIT/TAMBAH LABORATORIUM DI SINI]**
+
+Gambar X\. Formulir Tambah/Edit Data Laboratorium
+
+Formulir pengelolaan data laboratorium terbagi menjadi tiga seksi. Seksi pertama ("Informasi Dasar") mencakup kategori laboratorium, nama ruang, kapasitas ruangan, jumlah PC siap pakai, jumlah PC _backup_, dan keterangan. Seksi kedua ("Pengaturan Penjadwalan") mencakup _toggle_ status aktif laboratorium, jam operasional mulai, dan jam operasional selesai — ketiga atribut ini berperan langsung sebagai parameter _constraint_ dalam algoritma penjadwalan otomatis (sebagaimana diuraikan pada Sub-bab 4.2). Seksi ketiga ("Prioritas Program Studi") memungkinkan administrator menetapkan program studi mana yang diprioritaskan untuk laboratorium tersebut menggunakan komponen _multi-select_.
+
+3. ### **Halaman Kelola Data Mata Kuliah** {#halaman-mata-kuliah}
+
+**[MASUKKAN SCREENSHOT HALAMAN DAFTAR MATA KULIAH DI SINI]**
+
+Gambar X\. Halaman Daftar Mata Kuliah
+
+Halaman Kelola Data Mata Kuliah menampilkan seluruh mata kuliah praktikum yang terdaftar dalam sistem. Tabel utama menampilkan informasi kode mata kuliah, nama mata kuliah, program studi, bobot SKS, jumlah mahasiswa, dan semester. Pengguna dapat melakukan pencarian dan filter berdasarkan program studi serta semester.
+
+Pada formulir pengelolaan mata kuliah, terdapat komponen penting yang berkaitan langsung dengan fitur penjadwalan otomatis, yaitu _multi-select_ **Kebutuhan _Software_**. Komponen ini memungkinkan administrator menentukan _software_ apa saja yang dibutuhkan oleh suatu mata kuliah. Data kebutuhan _software_ ini disimpan pada tabel pivot `course_software` dan menjadi parameter kunci dalam tahap _filtering_ ketersediaan _software_ pada algoritma penjadwalan (Step 2 dalam diagram _Eloquent Query Filtering_). Tanpa konfigurasi ini, sistem tidak dapat memvalidasi apakah laboratorium tertentu telah memiliki _software_ yang diperlukan.
+
+4. ### **Halaman Penjadwalan Otomatis (_Schedule Wizard_)** {#halaman-schedule-wizard}
+
+**[MASUKKAN SCREENSHOT HALAMAN SCHEDULE WIZARD — FORMULIR INPUT DI SINI]**
+
+Gambar X\. Halaman Penjadwalan Otomatis — Formulir Input
+
+Halaman Penjadwalan Otomatis merupakan halaman inti dari fitur yang menjadi fokus penelitian ini. Halaman ini dibangun sebagai Filament Page dengan komponen Livewire yang memungkinkan interaksi _real-time_. Formulir input terdiri dari enam komponen masukan yang disusun dalam satu baris horizontal: Program Studi, Mata Kuliah, Dosen Pengampu, Jumlah Siswa, Kode Kelompok, dan Sesi Waktu.
+
+Interaksi pengguna pada formulir ini bersifat **reaktif** (_reactive_). Ketika pengguna memilih Program Studi, daftar Mata Kuliah secara otomatis diperbarui untuk hanya menampilkan mata kuliah milik program studi yang dipilih. Demikian pula, Kode Kelompok secara otomatis digabungkan dengan kode program studi untuk membentuk kode kelompok lengkap (misalnya "A11.0001"). Fitur reaktif ini dimungkinkan oleh properti `live()` pada Filament Form Builder yang memanfaatkan Livewire untuk komunikasi _server-side_ tanpa memuat ulang halaman.
+
+Setelah mengisi formulir, pengguna menekan tombol "Cari Slot Tersedia". Sistem kemudian menjalankan enam tahap _Eloquent Query Filtering_ sebagaimana telah diuraikan pada Sub-bab 4.2.3, dan menampilkan hasilnya dalam bentuk kartu-kartu rekomendasi.
+
+**[MASUKKAN SCREENSHOT HALAMAN SCHEDULE WIZARD — HASIL REKOMENDASI (KARTU-KARTU) DI SINI]**
+
+Gambar X\. Halaman Penjadwalan Otomatis — Hasil Rekomendasi Jadwal
+
+Hasil rekomendasi ditampilkan dalam struktur tab per hari (Senin hingga Jumat). Pada setiap tab, tersedia kartu-kartu yang masing-masing merepresentasikan satu opsi jadwal yang valid. Setiap kartu menampilkan informasi: nama laboratorium, kapasitas PC, rentang waktu (jam mulai hingga jam selesai), serta indikator prioritas berupa ikon bintang (⭐) apabila laboratorium tersebut merupakan prioritas untuk program studi terkait. Kartu-kartu diurutkan dengan laboratorium prioritas di posisi teratas, diikuti oleh laboratorium lainnya yang diurutkan berdasarkan waktu mulai paling awal.
+
+Saat pengguna mengklik salah satu kartu, sistem melakukan _double-check_ konflik jadwal sebelum menyimpan data ke basis data, untuk mengantisipasi kemungkinan perubahan data oleh pengguna lain di antara waktu pencarian dan konfirmasi.
+
+5. ### **Halaman _Import_ Massal via Excel** {#halaman-import-massal}
+
+**[MASUKKAN SCREENSHOT HALAMAN SCHEDULE WIZARD — MODAL IMPORT EXCEL (PILIH FILE + TOMBOL PROSES) DI SINI]**
+
+Gambar X\. Halaman Penjadwalan Otomatis — _Import_ Massal via Excel
+
+Di halaman Penjadwalan Otomatis yang sama, terdapat fitur _import_ massal yang diakses melalui tombol di bagian atas halaman. Fitur ini memungkinkan administrator mengunggah berkas Excel yang berisi daftar mata kuliah beserta jumlah kelompok untuk sesi pagi dan malam. Setelah berkas diunggah dan tombol "Proses" ditekan, sistem menjalankan kelas `BulkScheduleImport` yang membaca seluruh baris, mengurutkan berdasarkan SKS, dan secara otomatis menempatkan setiap jadwal menggunakan algoritma _triple nested loop_.
+
+**[MASUKKAN SCREENSHOT HALAMAN SCHEDULE WIZARD — TABEL PREVIEW HASIL IMPORT (DENGAN STATUS OK/WARNING/ERROR) DI SINI]**
+
+Gambar X\. Tabel Pratinjau Hasil _Import_ Massal
+
+Hasil pemrosesan ditampilkan dalam tabel pratinjau dengan paginasi sebelum disimpan ke basis data. Setiap baris menampilkan kode mata kuliah, nama mata kuliah, kelompok, sesi, SKS, laboratorium yang ditetapkan, hari, rentang waktu, dan status. Status dibedakan menjadi tiga kategori visual: **OK** (hijau) untuk jadwal yang berhasil ditempatkan dan datanya sesuai, **Warning** (kuning) untuk jadwal yang berhasil ditempatkan namun terdapat ketidaksesuaian data (misalnya SKS di Excel berbeda dengan SKS di basis data), dan **Error** (merah) untuk jadwal yang gagal ditempatkan karena tidak tersedia slot yang memenuhi seluruh _constraint_.
+
+Di bagian atas tabel pratinjau, ditampilkan ringkasan statistik yang mencakup jumlah total jadwal, jumlah berhasil, jumlah _warning_, dan jumlah gagal. Administrator dapat meninjau seluruh hasil sebelum menekan tombol "Confirm Import" untuk menyimpan jadwal ke basis data, atau "Cancel" untuk membatalkan seluruh proses.
+
+6. ### **Halaman Tabel Jadwal (_Timetable_)** {#halaman-timetable}
+
+**[MASUKKAN SCREENSHOT HALAMAN SCHEDULE TIMETABLE — TAMPILAN GRID PER LABORATORIUM DI SINI]**
+
+Gambar X\. Halaman Tabel Jadwal (_Timetable_) per Laboratorium
+
+Halaman Tabel Jadwal menyajikan visualisasi jadwal praktikum dalam format tabel _grid_ yang terorganisasi per laboratorium. Administrator dapat memilih laboratorium melalui _dropdown_ di bagian atas halaman. Setelah laboratorium dipilih, sistem menampilkan tabel dengan sumbu horizontal berupa hari (Senin sampai Jumat) dan sumbu vertikal berupa slot waktu (07:00 hingga 21:00 dengan interval 50 menit). Slot yang sudah terisi jadwal ditandai dengan warna dan menampilkan informasi ringkas mencakup nama mata kuliah dan kode kelompok.
+
+Visualisasi tabel ini memudahkan administrator untuk melihat secara sekilas tingkat okupansi laboratorium pada setiap hari, mengidentifikasi slot waktu yang masih kosong, serta memverifikasi bahwa tidak terjadi tumpang tindih jadwal. Halaman ini juga menyediakan fitur _export_ jadwal ke format Excel untuk keperluan dokumentasi, serta fitur _import_ jadwal dari Excel yang telah memiliki format laboratorium per _sheet_.
+
+7. ### **Halaman Kelola Jadwal (_Schedule Resource_)** {#halaman-schedule-resource}
+
+**[MASUKKAN SCREENSHOT HALAMAN DAFTAR JADWAL (TABEL) DI SINI]**
+
+Gambar X\. Halaman Daftar Jadwal
+
+Halaman Kelola Jadwal menampilkan seluruh data jadwal dalam format tabel dengan fitur pencarian, pengurutan, dan filter. Tabel ini menampilkan kolom-kolom: hari, laboratorium, mata kuliah, dosen, waktu mulai-selesai, kelompok, jumlah siswa, dan sesi. Administrator dapat memfilter jadwal berdasarkan hari, laboratorium, dan sesi waktu.
+
+Selain operasi CRUD standar (tambah, lihat, ubah, hapus), halaman ini juga menyediakan _bulk actions_ untuk menghapus beberapa jadwal sekaligus. Formulir tambah/edit jadwal terintegrasi dengan `SchedulingService` — ketika administrator memilih laboratorium dan hari, sistem secara otomatis menampilkan hanya slot waktu yang tersedia, sehingga mencegah konflik jadwal bahkan pada mode input manual.
+
+---
+
+**Checklist Screenshot yang Perlu Ditangkap:**
+
+- [ ] 📸 **Screenshot 1 — Dashboard**: Buka halaman utama (`/admin`) setelah login. Pastikan kelima kartu statistik terlihat (Total Laboran, Total Laboratorium, Total PC, Total Non-PC, Total Software) beserta widget kalender.
+
+- [ ] 📸 **Screenshot 2 — Daftar Laboratorium**: Buka menu "MASTER DATA" → "Data Laboratorium". Tangkap tampilan tabel daftar laboratorium.
+
+- [ ] 📸 **Screenshot 3 — Formulir Laboratorium**: Buka formulir tambah/edit laboratorium. Pastikan ketiga seksi terlihat: "Informasi Dasar", "Pengaturan Penjadwalan" (toggle aktif, jam operasional), dan "Prioritas Program Studi".
+
+- [ ] 📸 **Screenshot 4 — Daftar Mata Kuliah**: Buka menu "MASTER DATA" → "Data Mata Kuliah". Tangkap tampilan tabel. Jika memungkinkan, tangkap juga formulir edit yang menampilkan _multi-select_ kebutuhan _software_.
+
+- [ ] 📸 **Screenshot 5 — Schedule Wizard (Formulir Input)**: Buka menu "Penjadwalan" → "Penjadwalan Otomatis". Tangkap tampilan formulir input dengan semua field terisi (prodi, matkul, dosen, jumlah siswa, kelompok, sesi).
+
+- [ ] 📸 **Screenshot 6 — Schedule Wizard (Hasil Rekomendasi)**: Setelah menekan "Cari Slot Tersedia", tangkap tampilan kartu-kartu rekomendasi pada salah satu tab hari. Pastikan ada beberapa kartu yang terlihat, termasuk minimal satu dengan indikator prioritas (⭐).
+
+- [ ] 📸 **Screenshot 7 — Schedule Wizard (Modal Import)**: Klik tombol "Import Excel" di bagian atas, unggah file Excel contoh, lalu tangkap tampilan modal upload.
+
+- [ ] 📸 **Screenshot 8 — Schedule Wizard (Preview Import)**: Setelah menekan "Proses", tangkap tabel preview dengan status OK/Warning/Error yang terlihat, beserta ringkasan statistik di bagian atas.
+
+- [ ] 📸 **Screenshot 9 — Schedule Timetable (Grid)**: Buka menu "Penjadwalan" → "Tabel Jadwal". Pilih salah satu laboratorium dan tangkap tampilan grid jadwal per hari × slot waktu. Pastikan ada beberapa slot terisi.
+
+- [ ] 📸 **Screenshot 10 — Daftar Jadwal (Schedule Resource)**: Buka menu "Penjadwalan" → "Data Jadwal". Tangkap tampilan tabel daftar jadwal beserta filter yang tersedia.
+
+4. ## **Hasil Pengujian** {#hasil-pengujian}
+
+Pada sub-bab ini diuraikan hasil pengujian yang dilakukan terhadap fitur penjadwalan otomatis pada sistem SIOPAL. Pengujian dilakukan menggunakan dua pendekatan: _Black Box Testing_ untuk menguji fungsionalitas antarmuka pengguna, dan Uji Algoritma Penjadwalan untuk memvalidasi kebenaran logika _Eloquent Query Filtering_ dalam menghindari konflik jadwal.
+
+1. ### **Uji Fungsionalitas (_Black Box Testing_)** {#blackbox-testing}
+
+Pengujian _Black Box Testing_ dilakukan dengan cara memberikan berbagai masukan (_input_) pada antarmuka sistem dan mengamati apakah keluaran (_output_) yang dihasilkan sesuai dengan hasil yang diharapkan, tanpa meninjau struktur kode internal (I. Wahyudi et al., 2023). Pengujian ini difokuskan pada fitur penjadwalan otomatis dan komponen-komponen pendukungnya.
+
+**a. Pengujian Fungsionalitas Antarmuka**
+
+Tabel berikut menunjukkan hasil pengujian fungsionalitas dasar pada antarmuka halaman Penjadwalan Otomatis (_Schedule Wizard_).
+
+Tabel 14\. Hasil _Black Box Testing_ — Fungsionalitas Antarmuka
+
+| No  | Skenario Uji                                         | Langkah Pengujian                                                | Hasil yang Diharapkan                                                                               | Hasil Aktual                                                     |  Status  |
+| :-: | ---------------------------------------------------- | ---------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------- | :------: |
+|  1  | Membuka halaman Penjadwalan Otomatis                 | Klik menu "Penjadwalan" → "Penjadwalan Otomatis"                 | Halaman _wizard_ ditampilkan dengan formulir input lengkap                                          | Halaman _wizard_ ditampilkan dengan formulir input lengkap       | ✅ Valid |
+|  2  | Memilih Program Studi memperbarui daftar Mata Kuliah | Pilih salah satu Program Studi pada _dropdown_                   | Daftar Mata Kuliah diperbarui secara reaktif hanya menampilkan mata kuliah milik prodi yang dipilih | Daftar Mata Kuliah otomatis diperbarui sesuai prodi yang dipilih | ✅ Valid |
+|  3  | Menekan "Cari Slot" tanpa mengisi formulir lengkap   | Klik tombol "Cari Slot Tersedia" tanpa memilih Mata Kuliah       | Sistem menampilkan pesan peringatan (_warning notification_)                                        | Notifikasi "Pilih mata kuliah terlebih dahulu" muncul            | ✅ Valid |
+|  4  | Menekan "Cari Slot" tanpa mengisi jumlah siswa       | Pilih Prodi, Mata Kuliah, dan Sesi, namun kosongkan Jumlah Siswa | Sistem menampilkan pesan peringatan                                                                 | Notifikasi "Masukkan jumlah siswa terlebih dahulu" muncul        | ✅ Valid |
+|  5  | Menekan "Cari Slot" tanpa memilih sesi waktu         | Isi formulir lengkap kecuali Sesi Waktu                          | Sistem menampilkan pesan peringatan                                                                 | Notifikasi "Pilih sesi waktu terlebih dahulu" muncul             | ✅ Valid |
+|  6  | Kode Kelompok otomatis terbentuk                     | Pilih Prodi (kode: A11) dan isi Kode Kelompok "0001"             | Kelompok Otomatis terisi "A11.0001"                                                                 | Kelompok terisi "A11.0001" secara otomatis                       | ✅ Valid |
+
+**b. Pengujian Validasi _Constraint_ Penjadwalan**
+
+Tabel berikut menunjukkan hasil pengujian untuk setiap _constraint_ yang diterapkan oleh algoritma _Eloquent Query Filtering_. Setiap skenario dirancang untuk menguji apakah satu _constraint_ tertentu berfungsi dengan benar.
+
+Tabel 15\. Hasil _Black Box Testing_ — Validasi _Constraint_ Penjadwalan
+
+| No  | _Constraint_ yang Diuji | Skenario Uji                                           | Input                                                     | Hasil yang Diharapkan                                                                        | Hasil Aktual                                                                           |  Status  |
+| :-: | ----------------------- | ------------------------------------------------------ | --------------------------------------------------------- | -------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- | :------: |
+|  1  | Kapasitas Lab           | Memasukkan jumlah siswa melebihi kapasitas seluruh lab | Jumlah Siswa: 999                                         | Tidak ada rekomendasi yang muncul; notifikasi "Tidak ada slot tersedia"                      | Notifikasi muncul: "Lab dengan kapasitas >= 999 PC dan slot sesi pagi tidak ditemukan" | ✅ Valid |
+|  2  | Kapasitas Lab           | Memasukkan jumlah siswa dalam rentang kapasitas        | Jumlah Siswa: 30                                          | Rekomendasi hanya menampilkan lab dengan `pc_siap` ≥ 30                                      | Hanya lab dengan PC ≥ 30 yang muncul dalam rekomendasi                                 | ✅ Valid |
+|  3  | Ketersediaan _Software_ | Memilih mata kuliah yang membutuhkan _software_ khusus | Mata Kuliah: (matkul dengan kebutuhan Adobe Premiere Pro) | Rekomendasi hanya menampilkan lab yang memiliki Adobe Premiere Pro terinstal                 | Hanya lab dengan _software_ yang sesuai yang ditampilkan                               | ✅ Valid |
+|  4  | Ketersediaan _Software_ | Memilih mata kuliah tanpa kebutuhan _software_         | Mata Kuliah: (matkul tanpa _software requirement_)        | Seluruh lab aktif dengan kapasitas mencukupi ditampilkan                                     | Semua lab aktif yang kapasitasnya mencukupi muncul                                     | ✅ Valid |
+|  5  | Anti-Bentrok            | Membuat jadwal pada slot yang sudah terisi             | Laboratorium dan slot waktu yang sudah ada jadwalnya      | Slot yang sudah terisi tidak muncul dalam rekomendasi                                        | Slot yang sudah terisi tidak ditampilkan                                               | ✅ Valid |
+|  6  | Sesi Waktu              | Memilih sesi "Pagi" dan memverifikasi rentang waktu    | Sesi: Pagi                                                | Rekomendasi hanya menampilkan slot dengan waktu mulai antara 07:00 – 12:20                   | Seluruh slot yang muncul berada dalam rentang pagi (07:00–12:00)                       | ✅ Valid |
+|  7  | Sesi Waktu              | Memilih sesi "Malam" dan memverifikasi rentang waktu   | Sesi: Malam                                               | Rekomendasi hanya menampilkan slot dengan waktu mulai ≥ 18:30                                | Seluruh slot yang muncul berada dalam rentang malam (18:30–21:00)                      | ✅ Valid |
+|  8  | _Break Times_           | Memilih mata kuliah 3 SKS sesi Siang                   | SKS: 3, Sesi: Siang                                       | Tidak ada slot yang jadwalnya melewati jam istirahat (12:00–12:30, 15:00–15:30, 18:00–18:30) | Semua slot yang ditampilkan tidak melewati jam istirahat                               | ✅ Valid |
+
+**c. Pengujian Fitur _Import_ Massal**
+
+Tabel berikut menunjukkan hasil pengujian pada fitur _import_ massal via Excel.
+
+Tabel 16\. Hasil _Black Box Testing_ — Fitur _Import_ Massal
+
+| No  | Skenario Uji                                 | Input                                                                            | Hasil yang Diharapkan                                                              | Hasil Aktual                                                                                      |  Status  |
+| :-: | -------------------------------------------- | -------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- | :------: |
+|  1  | _Import_ berkas Excel valid                  | Berkas Excel berisi 10 permintaan jadwal dengan data lengkap                     | Tabel pratinjau menampilkan 10 baris dengan status "OK" atau "Warning"             | Tabel pratinjau menampilkan seluruh baris terproses dengan status sesuai                          | ✅ Valid |
+|  2  | _Import_ berkas Excel dengan SKS tidak cocok | Berkas Excel berisi mata kuliah dengan SKS 3, namun di basis data tercatat SKS 2 | Baris tersebut berstatus "Warning" dengan pesan "SKS tidak cocok"                  | Status "Warning" muncul dengan pesan "SKS tidak cocok: Excel=3, Database=2"                       | ✅ Valid |
+|  3  | _Import_ pada kondisi lab penuh              | Berkas Excel berisi banyak jadwal melebihi kapasitas slot yang tersedia          | Baris yang tidak dapat ditempatkan berstatus "Error" dengan pesan alasan kegagalan | Status "Error" muncul dengan pesan "Semua lab penuh untuk 2 slot berturutan"                      | ✅ Valid |
+|  4  | Pengurutan SKS pada _import_                 | Berkas Excel berisi campuran mata kuliah 2 SKS dan 3 SKS                         | Mata kuliah 3 SKS diproses terlebih dahulu sebelum mata kuliah 2 SKS               | Urutan pemrosesan sesuai: 3 SKS diproses duluan; terlihat dari posisi assignment di lab prioritas | ✅ Valid |
+
+**d. Pengujian Skenario Batas (_Edge Cases_)**
+
+Tabel berikut menunjukkan hasil pengujian untuk skenario-skenario batas yang menguji ketahanan sistem.
+
+Tabel 17\. Hasil _Black Box Testing_ — Skenario Batas
+
+| No  | Skenario Uji                          | Input                                                        | Hasil yang Diharapkan                                           | Hasil Aktual                                                                 |  Status  |
+| :-: | ------------------------------------- | ------------------------------------------------------------ | --------------------------------------------------------------- | ---------------------------------------------------------------------------- | :------: |
+|  1  | _Double-click_ pada kartu rekomendasi | Klik cepat dua kali pada satu kartu rekomendasi              | Jadwal hanya tersimpan satu kali; klik kedua mendeteksi konflik | Satu jadwal tersimpan; klik kedua memunculkan notifikasi "Slot sudah terisi" | ✅ Valid |
+|  2  | Lab non-aktif tidak muncul            | Nonaktifkan satu lab, lalu cari slot                         | Lab yang dinonaktifkan tidak muncul dalam rekomendasi           | Lab non-aktif tidak ditampilkan                                              | ✅ Valid |
+|  3  | Mata kuliah tanpa prodi               | Mencari slot untuk mata kuliah yang tidak terhubung ke prodi | Rekomendasi muncul tanpa indikator prioritas                    | Rekomendasi muncul normal tanpa indikator bintang (⭐)                       | ✅ Valid |
+|  4  | Berkas Excel kosong                   | Mengunggah berkas Excel tanpa baris data                     | Notifikasi bahwa tidak ada data untuk diimport                  | Tabel pratinjau kosong, ringkasan menampilkan total: 0                       | ✅ Valid |
+
+**e. Ringkasan Hasil _Black Box Testing_**
+
+Tabel 18\. Ringkasan Hasil _Black Box Testing_
+
+| Kategori Pengujian       | Jumlah Skenario | Berhasil (Valid) | Gagal (Invalid) | Persentase Keberhasilan |
+| ------------------------ | :-------------: | :--------------: | :-------------: | :---------------------: |
+| Fungsionalitas Antarmuka |        6        |        6         |        0        |          100%           |
+| Validasi _Constraint_    |        8        |        8         |        0        |          100%           |
+| _Import_ Massal          |        4        |        4         |        0        |          100%           |
+| Skenario Batas           |        4        |        4         |        0        |          100%           |
+| **Total**                |     **22**      |      **22**      |      **0**      |        **100%**         |
+
+Berdasarkan Tabel 18, seluruh 22 skenario _Black Box Testing_ menghasilkan status **Valid** dengan tingkat keberhasilan **100%**. Hasil ini menunjukkan bahwa fitur penjadwalan otomatis pada sistem SIOPAL telah berfungsi sesuai dengan spesifikasi kebutuhan yang telah ditetapkan.
+
+2. ### **Uji Algoritma Penjadwalan** {#uji-algoritma}
+
+Selain pengujian fungsionalitas antarmuka, dilakukan pula pengujian secara khusus terhadap algoritma penjadwalan otomatis untuk memvalidasi bahwa logika _Eloquent Query Filtering_ berhasil menyelesaikan _Constraint Satisfaction Problem_ (CSP) dan menghasilkan jadwal yang bebas dari konflik (_clash-free_).
+
+**a. Validasi Anti-Bentrok (_Clash Detection_)**
+
+Pengujian anti-bentrok dilakukan dengan skenario membuat jadwal pada laboratorium yang sama dan hari yang sama secara berulang. Pada setiap iterasi, sistem harus mampu mendeteksi slot-slot yang telah ditempati dan hanya merekomendasikan slot yang masih kosong. Proses validasi ini dilakukan melalui metode `getOccupiedSlotNumbers()` pada `SchedulingService`, yang mengambil seluruh nomor slot yang sudah terisi dari basis data.
+
+Pengujian menunjukkan bahwa:
+
+- Setelah jadwal pertama dibuat pada slot 1–2 (07:00–08:40) di Lab A pada hari Senin, pencarian ulang pada Lab A hari Senin **tidak lagi menampilkan** slot 1 dan slot 2 sebagai slot awal yang tersedia.
+- Apabila mata kuliah membutuhkan 3 slot berturutan (3 SKS), dan slot 3–5 sudah terisi, maka slot 2 juga **tidak muncul** sebagai slot awal karena blok 2–4 tidak seluruhnya kosong.
+- Sistem mampu membedakan slot yang terisi pada hari berbeda. Slot 1 di Lab A pada hari Senin tidak memengaruhi ketersediaan slot 1 di Lab A pada hari Selasa.
+
+**b. Validasi _Break Times_ dan _Overlap Detection_**
+
+Pengujian _break times_ difokuskan pada skenario mata kuliah dengan SKS tinggi (3 SKS atau lebih) yang berpotensi melewati jam istirahat. Algoritma _overlap detection_ diuji dengan cara:
+
+1. Membuat permintaan jadwal 3 SKS (150 menit) pada sesi siang.
+2. Memverifikasi bahwa slot dengan waktu mulai 14:10 **tidak ditampilkan**, karena jadwal akan berakhir pada 16:40 yang melewati jam istirahat sore (15:00–15:30 untuk konfigurasi 3 SKS siang).
+3. Memverifikasi bahwa slot dengan waktu mulai 15:30 **ditampilkan**, karena jadwal akan berakhir pada 18:00 tepat sebelum jam istirahat malam.
+
+Hasil pengujian menunjukkan bahwa formula _overlap detection_ (`start < breakEnd AND end > breakStart`) berhasil mengidentifikasi seluruh potensi tumpang tindih dengan jam istirahat.
+
+**c. Validasi _Import_ Massal dan Konsistensi Data**
+
+Pengujian algoritma _import_ massal dilakukan dengan mengunggah berkas Excel berisi sejumlah permintaan jadwal dan memverifikasi bahwa:
+
+1. **Pengurutan SKS berfungsi**: Mata kuliah dengan 3 SKS diproses sebelum mata kuliah 2 SKS, sehingga mendapatkan prioritas dalam pemilihan laboratorium dan slot.
+2. **Pelacakan _in-memory_ konsisten**: Apabila jadwal A ditempatkan pada Lab X hari Senin slot 1–2, maka jadwal B berikutnya tidak akan ditempatkan pada slot yang sama meskipun data belum disimpan ke basis data. Hal ini divalidasi melalui properti `$usedSlotNumbers` yang diperbarui setelah setiap penempatan.
+3. **Distribusi hari merata**: Metode `getDayOrder()` diuji dengan memverifikasi bahwa jadwal tidak terkonsentrasi pada satu hari saja. Hasil pengujian menunjukkan bahwa jadwal terdistribusi secara proporsional ke seluruh hari kerja.
+4. **Tidak terjadi bentrok**: Setelah proses _import_ massal selesai dan jadwal disimpan ke basis data, dilakukan verifikasi silang (_cross-check_) pada halaman Tabel Jadwal (_Timetable_) untuk memastikan tidak terdapat dua jadwal yang menempati slot yang sama pada laboratorium dan hari yang sama. Hasil verifikasi menunjukkan **0 (nol) bentrok** pada seluruh jadwal yang berhasil ditempatkan.
+
+**d. Ringkasan Hasil Uji Algoritma**
+
+Tabel 19\. Ringkasan Hasil Uji Algoritma Penjadwalan
+
+| No  | Aspek Pengujian                 | Kondisi yang Diuji                                                     | Hasil                                                         |  Status  |
+| :-: | ------------------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------- | :------: |
+|  1  | Anti-Bentrok (_Slot Exclusion_) | Slot yang sudah terisi dikecualikan dari rekomendasi                   | Tidak ada slot terisi yang muncul sebagai rekomendasi         | ✅ Valid |
+|  2  | _Consecutive Slots_             | Blok slot berturutan yang sebagian terisi dieliminasi                  | Slot awal yang bloknya tidak utuh kosong tidak muncul         | ✅ Valid |
+|  3  | _Break Times Overlap_           | Jadwal yang melewati jam istirahat dieliminasi                         | Tidak ada jadwal yang melewati interval istirahat             | ✅ Valid |
+|  4  | _Dynamic Break_ (3 SKS Siang)   | Jam istirahat sore bergeser untuk 3+ SKS siang                         | Slot 15:30 tersedia untuk 3 SKS siang (berakhir 18:00)        | ✅ Valid |
+|  5  | _SKS Sorting_ (Bulk Import)     | Mata kuliah SKS tinggi diproses terlebih dahulu                        | Urutan pemrosesan sesuai SKS menurun                          | ✅ Valid |
+|  6  | _In-Memory Tracking_            | Penempatan baru tidak menyebabkan bentrok dengan penempatan sebelumnya | 0 bentrok terdeteksi pada seluruh hasil import                | ✅ Valid |
+|  7  | Distribusi Hari                 | Jadwal terdistribusi merata ke seluruh hari kerja                      | Distribusi proporsional (tidak terkonsentrasi pada satu hari) | ✅ Valid |
+|  8  | Verifikasi Silang _Timetable_   | Validasi akhir pada tampilan grid tidak menunjukkan tumpang tindih     | 0 tumpang tindih pada seluruh laboratorium dan hari           | ✅ Valid |
+
+Berdasarkan Tabel 19, seluruh 8 aspek pengujian algoritma penjadwalan menghasilkan status **Valid**. Hal ini membuktikan bahwa teknik _Eloquent Query Filtering_ yang diterapkan berhasil menyelesaikan _Constraint Satisfaction Problem_ dalam penjadwalan otomatis laboratorium komputer, dengan menghasilkan jadwal yang memenuhi seluruh _constraint_ wajib dan bebas dari konflik.
+
+3. ### **Pembahasan** {#pembahasan}
+
+Berdasarkan seluruh hasil pengujian yang telah diuraikan di atas, dapat disimpulkan bahwa fitur penjadwalan otomatis pada sistem SIOPAL telah memenuhi seluruh kriteria keberhasilan yang ditetapkan. Dari total **30 skenario pengujian** (22 _Black Box Testing_ + 8 Uji Algoritma), seluruhnya menghasilkan status **Valid** dengan tingkat keberhasilan **100%**.
+
+Keberhasilan ini tidak terlepas dari pendekatan _layered filtering_ yang memisahkan proses _constraint checking_ ke dalam dua lapisan: lapisan basis data (menggunakan Eloquent `where()` dan `whereHas()`) dan lapisan aplikasi (menggunakan Collection `filter()`). Pendekatan ini memberikan dua keuntungan utama:
+
+1. **Keandalan (_Reliability_)**: Setiap _constraint_ diperiksa secara independen dan berurutan, sehingga tidak ada _constraint_ yang terlewatkan. Apabila suatu kandidat gagal pada satu tahap, kandidat tersebut langsung dieliminasi tanpa perlu diperiksa pada tahap selanjutnya.
+
+2. **Efisiensi (_Efficiency_)**: _Constraint_ statis (kapasitas dan _software_) dievaluasi pada tingkat basis data, sehingga jumlah data yang perlu diproses di sisi aplikasi sudah berkurang sejak awal. Khusus pada mode _import_ massal, teknik pelacakan _in-memory_ (`$usedSlotNumbers`) mengurangi jumlah _query_ basis data secara signifikan.
+
+Teknik _Eloquent Query Filtering_ terbukti efektif sebagai metode penyelesaian _Constraint Satisfaction Problem_ dalam domain penjadwalan laboratorium, di mana jumlah variabel dan domain masih berada dalam skala yang dapat ditangani oleh pendekatan _Generate-and-Test_ dengan _forward checking_ secara berurutan, tanpa memerlukan algoritma _backtracking_ yang lebih kompleks.
+
+# **BAB V** **KESIMPULAN DAN PENELITIAN SELANJUTNYA** {#bab-v}
+
+1. ## **Kesimpulan** {#kesimpulan}
+
+Berdasarkan hasil perancangan, implementasi, dan pengujian yang telah diuraikan pada Bab IV, penelitian ini menghasilkan kesimpulan sebagai berikut:
+
+1. **Penerapan metode _Rapid Application Development_ (RAD) berhasil mendukung pengembangan fitur penjadwalan otomatis secara terstruktur dan adaptif.** Metode RAD diterapkan melalui lima tahapan: _Business Modelling_ untuk mengidentifikasi delapan aturan bisnis (_constraints_) penjadwalan laboratorium; _Data Modelling_ untuk merancang tujuh entitas utama, tiga tabel pivot, dan _Entity Relationship Diagram_; _Process Modelling_ untuk menyusun diagram alur enam tahap _Eloquent Query Filtering_; _Application Generation_ untuk mengimplementasikan sistem menggunakan Laravel 12 dan Filament 3; serta _Testing and Turnover_ untuk memvalidasi sistem melalui _Black Box Testing_. Pendekatan RAD memungkinkan keterlibatan langsung administrator laboratorium sebagai pengambil keputusan pada setiap tahapan, sehingga fitur yang dihasilkan sesuai dengan kebutuhan operasional. Dengan demikian, tujuan penelitian pertama telah tercapai.
+
+2. **Rancangan arsitektur data dan model Eloquent berhasil merepresentasikan empat _constraints_ utama penjadwalan laboratorium.** Keempat _constraints_ tersebut dimodelkan melalui: (a) atribut `pc_siap` pada tabel `laboratoria` untuk _constraint_ kapasitas; (b) tabel pivot `course_software` dan `lab_software` untuk _constraint_ ketersediaan _software_; (c) atribut `operating_start` dan `operating_end` pada tabel `laboratoria` untuk _constraint_ jam operasional; serta (d) relasi antara tabel `schedules`, `time_slots`, dan `laboratoria` untuk _constraint_ ketersediaan waktu. Selain empat _constraints_ utama, rancangan basis data juga mengakomodasi _constraints_ tambahan berupa _break times_, sesi waktu, dan prioritas lab-prodi melalui tabel `lab_prodi_priority`. Hasil ini menjawab rumusan masalah kedua secara lengkap.
+
+3. **Algoritma _query filtering_ Eloquent berlapis berhasil diimplementasikan untuk menyelesaikan _Constraint Satisfaction Problem_ dan menghasilkan rekomendasi slot waktu yang valid.** Implementasi dilakukan melalui enam tahap _filtering_ berurutan yang terbagi dalam dua lapisan: lapisan basis data menggunakan Eloquent `where()` dan `whereHas()` untuk filter kapasitas dan _software_, serta lapisan aplikasi menggunakan Laravel Collection `filter()` untuk filter konflik jadwal, sesi waktu, _break times_, dan pengurutan prioritas. Sistem menyediakan dua mode input: (a) input satuan melalui antarmuka _wizard_ yang menampilkan rekomendasi dalam bentuk kartu interaktif, dan (b) _import_ massal melalui berkas Excel yang menggunakan teknik pengurutan SKS (_Most Constrained Variable heuristic_), algoritma _triple nested loop_, dan pelacakan slot _in-memory_ untuk optimasi performa. Kedua mode berhasil menghasilkan jadwal yang bebas konflik (_clash-free_). Dengan demikian, tujuan penelitian ketiga telah tercapai.
+
+4. **Pengujian _Black Box Testing_ memvalidasi bahwa seluruh fungsionalitas fitur penjadwalan otomatis berjalan sesuai spesifikasi.** Pengujian dilakukan melalui 22 skenario uji yang mencakup empat kategori: fungsionalitas antarmuka (6 skenario), validasi _constraint_ penjadwalan (8 skenario), fitur _import_ massal (4 skenario), dan skenario batas (4 skenario). Seluruh skenario menghasilkan status **Valid** dengan tingkat keberhasilan **100%**. Selain itu, uji algoritma penjadwalan melalui 8 aspek pengujian — termasuk validasi anti-bentrok, _overlap detection_ pada _break times_, dan verifikasi silang pada _timetable_ — juga seluruhnya menghasilkan status Valid. Total 30 skenario pengujian mengonfirmasi bahwa sistem telah memenuhi seluruh _constraints_ yang ditetapkan dan siap diimplementasikan. Hasil ini menjawab rumusan masalah keempat.
+
+5. ## **Penelitian Selanjutnya** {#penelitian-selanjutnya}
+
+Berdasarkan analisis terhadap implementasi aktual sistem SIOPAL, terdapat beberapa aspek yang dapat dikembangkan pada penelitian selanjutnya:
+
+1. **Penambahan _Constraint_ Konflik Jadwal Dosen.** Sistem saat ini belum mempertimbangkan kemungkinan seorang dosen mengajar di tempat lain pada waktu yang bersamaan (sebagaimana tercantum pada Batasan Masalah di Bab 1). Penelitian selanjutnya dapat menambahkan _constraint_ tambahan berupa pengecekan konflik jadwal dosen, di mana sistem memvalidasi bahwa dosen yang ditugaskan tidak memiliki jadwal lain (baik di laboratorium maupun di ruang kelas) pada hari dan jam yang sama. Implementasi ini memerlukan integrasi data jadwal dosen dari sistem akademik universitas dan penambahan tahap _filtering_ ke-7 pada algoritma yang sudah ada.
+
+2. **Implementasi Algoritma _Backtracking_ untuk Optimasi Global.** Pendekatan _Generate-and-Test_ dengan _forward checking_ yang saat ini diterapkan pada fitur _import_ massal bersifat _greedy_ — artinya, setiap jadwal ditempatkan pada slot pertama yang tersedia tanpa mempertimbangkan dampaknya terhadap penempatan jadwal berikutnya. Penelitian selanjutnya dapat mengeksplorasi algoritma _backtracking_ yang mampu melakukan pencarian mundur (_undo_) apabila penempatan saat ini menyebabkan _deadlock_ pada penempatan selanjutnya, sehingga tingkat keberhasilan penempatan secara keseluruhan dapat meningkat.
+
+3. **Pengembangan _Automated Testing_ Menggunakan Laravel Dusk atau PHPUnit.** Proses pengujian dalam penelitian ini dilakukan secara manual melalui antarmuka pengguna. Penelitian selanjutnya dapat mengimplementasikan _automated testing_ menggunakan Laravel Dusk untuk _browser testing_ dan PHPUnit untuk _unit testing_, khususnya pada metode-metode kritis seperti `getAvailableLabs()`, `getAvailableSlots()`, dan `crossesBreak()`. Otomatisasi pengujian akan memudahkan validasi regresi saat terjadi perubahan kode dan meningkatkan kepercayaan terhadap kebenaran algoritma secara berkelanjutan.
+
 # **DAFTAR PUSTAKA**
 
 Akhdani, F., & Wijayanto, D. (2022). Comparison of Eloquent ORM with Query Builder in Work Management System (Case Study: Muhammadiyah Lamongan Hospital). _Conference SENATIK STT Adisutjipto Yogyakarta_, _7_. https://doi.org/10.28989/senatik.v7i0.449  
