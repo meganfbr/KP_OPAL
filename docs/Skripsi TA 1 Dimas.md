@@ -597,6 +597,205 @@ Tabel 11\. Pemetaan _Constraint_ ke Struktur Data
 
 Berdasarkan Tabel 11, _constraint_ yang bersifat statis (kapasitas dan _software_) difilter pada lapisan basis data (_database layer_) menggunakan Eloquent Query Builder. Sementara itu, _constraint_ yang bersifat dinamis (sesi waktu, _break times_, dan konflik jadwal) difilter pada lapisan aplikasi (_application layer_) menggunakan Laravel Collection. Pendekatan berlapis (_layered filtering_) ini dipilih untuk mengoptimalkan performa sistem, di mana data yang tidak relevan dieliminasi sedini mungkin pada tingkat basis data sebelum dilakukan pemrosesan lebih lanjut pada tingkat aplikasi.
 
+3. ### **Tahap _Process Modelling_** {#process-modelling-hasil}
+
+Tahap _Process Modelling_ menghasilkan diagram-diagram UML (_Unified Modeling Language_) yang menggambarkan interaksi pengguna dengan sistem, alur proses penjadwalan otomatis, serta interaksi antar komponen perangkat lunak. Diagram-diagram ini merupakan realisasi dari perancangan yang telah diuraikan pada Bab III Sub-bab 3.4.3.
+
+**a. _Use Case Diagram_**
+
+_Use Case Diagram_ digunakan untuk memetakan interaksi aktor (pengguna) dengan fungsionalitas sistem. Dalam konteks fitur penjadwalan otomatis, aktor utama adalah **Administrator Laboratorium** yang berinteraksi dengan tujuh _use case_ utama.
+
+_[Catatan: Diagram di bawah ini ditulis dalam format Mermaid dan perlu dikonversi ke diagram visual menggunakan Draw.io untuk keperluan dokumen akhir skripsi]_
+
+```mermaid
+flowchart LR
+    Admin["🧑‍💼 Administrator<br/>Laboratorium"]
+
+    UC1["Kelola Data<br/>Laboratorium"]
+    UC2["Kelola Data<br/>Mata Kuliah"]
+    UC3["Konfigurasi Kebutuhan<br/>Software Mata Kuliah"]
+    UC4["Cari Slot Jadwal<br/>Otomatis (Input Satuan)"]
+    UC5["Import Jadwal Massal<br/>via Excel"]
+    UC6["Lihat Tabel Jadwal<br/>(Timetable)"]
+    UC7["Kelola Data<br/>Jadwal (CRUD)"]
+
+    Admin --> UC1
+    Admin --> UC2
+    Admin --> UC3
+    Admin --> UC4
+    Admin --> UC5
+    Admin --> UC6
+    Admin --> UC7
+
+    UC3 -. "<<include>>" .-> UC2
+    UC4 -. "<<include>>" .-> UC7
+    UC5 -. "<<include>>" .-> UC7
+```
+
+Gambar X\. _Use Case Diagram_ Fitur Penjadwalan Otomatis SIOPAL
+
+Berdasarkan Gambar X, interaksi aktor dengan sistem dapat dijelaskan sebagai berikut:
+
+Tabel 12a\. Deskripsi _Use Case_
+
+| No  | _Use Case_                       | Deskripsi                                                                                                                                                                                                      |
+| :-: | -------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| UC1 | Kelola Data Laboratorium         | Administrator menambah, mengubah, atau menghapus data laboratorium, termasuk konfigurasi status aktif, jam operasional, dan prioritas program studi                                                            |
+| UC2 | Kelola Data Mata Kuliah          | Administrator mengelola data mata kuliah praktikum beserta atribut SKS dan jumlah mahasiswa                                                                                                                    |
+| UC3 | Konfigurasi Kebutuhan _Software_ | Administrator menetapkan _software_ yang dibutuhkan oleh setiap mata kuliah melalui relasi _many-to-many_. _Use case_ ini merupakan bagian dari UC2 (`<<include>>`)                                            |
+| UC4 | Cari Slot Jadwal Otomatis        | Administrator memasukkan parameter penjadwalan (prodi, matkul, jumlah siswa, sesi) dan sistem menampilkan rekomendasi slot yang valid. Pemilihan rekomendasi menghasilkan data jadwal baru (`<<include>>` UC7) |
+| UC5 | Import Jadwal Massal             | Administrator mengunggah berkas Excel dan sistem secara otomatis menempatkan jadwal ke slot yang tersedia. Hasil _import_ disimpan sebagai data jadwal (`<<include>>` UC7)                                     |
+| UC6 | Lihat Tabel Jadwal               | Administrator melihat visualisasi jadwal dalam format _grid_ per laboratorium per hari dan dapat melakukan _export_ ke Excel                                                                                   |
+| UC7 | Kelola Data Jadwal               | Administrator menambah, mengubah, atau menghapus data jadwal secara manual dengan validasi konflik otomatis                                                                                                    |
+
+**b. _Activity Diagram_ — Penjadwalan Otomatis (Input Satuan)**
+
+_Activity Diagram_ berikut menggambarkan alur aktivitas lengkap ketika administrator melakukan penjadwalan otomatis melalui mode input satuan pada halaman _Schedule Wizard_.
+
+```mermaid
+flowchart TD
+    Start(["● Mulai"]) --> A["Buka halaman<br/>Penjadwalan Otomatis"]
+    A --> B["Pilih Program Studi"]
+    B --> C["Pilih Mata Kuliah"]
+    C --> D["Isi Jumlah Siswa,<br/>Kelompok, Sesi Waktu"]
+    D --> E["Klik 'Cari Slot Tersedia'"]
+
+    E --> V1{"Validasi input<br/>lengkap?"}
+    V1 -- "Tidak" --> W1["Tampilkan<br/>notifikasi peringatan"]
+    W1 --> D
+
+    V1 -- "Ya" --> F["STEP 1: Filter lab aktif<br/>dengan kapasitas ≥ jumlah siswa<br/>(Eloquent where)"]
+    F --> G["STEP 2: Filter lab yang memiliki<br/>semua software yang dibutuhkan<br/>(Eloquent whereHas)"]
+    G --> H["STEP 3: Ambil slot yang sudah<br/>terisi, filter slot kosong berturutan<br/>(Eloquent where + PHP loop)"]
+    H --> I["STEP 4: Filter slot<br/>sesuai rentang sesi<br/>(Collection filter)"]
+    I --> J["STEP 5: Eliminasi slot yang<br/>melewati break times<br/>(Collection filter + overlap)"]
+    J --> K["STEP 6: Urutkan hasil —<br/>lab prioritas di atas<br/>(Collection sortByDesc)"]
+
+    K --> R1{"Ada rekomendasi<br/>yang tersedia?"}
+    R1 -- "Tidak" --> W2["Tampilkan notifikasi<br/>'Tidak ada slot tersedia'"]
+    W2 --> End(["● Selesai"])
+
+    R1 -- "Ya" --> L["Tampilkan kartu<br/>rekomendasi per hari"]
+    L --> M["Admin memilih<br/>salah satu kartu"]
+    M --> N{"Double-check:<br/>Masih kosong?"}
+    N -- "Tidak (bentrok)" --> W3["Tampilkan notifikasi<br/>'Slot sudah terisi'"]
+    W3 --> L
+    N -- "Ya" --> O["Simpan jadwal<br/>ke database"]
+    O --> P["Tampilkan notifikasi<br/>'Jadwal berhasil dibuat'"]
+    P --> End
+```
+
+Gambar X\. _Activity Diagram_ Penjadwalan Otomatis (Input Satuan)
+
+Berdasarkan Gambar X, alur penjadwalan otomatis terbagi menjadi empat fase utama: (1) **fase input**, di mana administrator mengisi formulir dan memicu proses pencarian; (2) **fase _filtering_**, di mana sistem menjalankan enam tahap _Eloquent Query Filtering_ secara berurutan; (3) **fase presentasi**, di mana sistem menampilkan hasil rekomendasi dalam bentuk kartu interaktif per hari; dan (4) **fase konfirmasi**, di mana administrator memilih rekomendasi dan sistem melakukan validasi ulang sebelum menyimpan data.
+
+Perlu diperhatikan bahwa pada fase konfirmasi terdapat mekanisme _double-check_ (node "Masih kosong?") yang berfungsi sebagai pengaman (_safeguard_) terhadap kondisi _race condition_ — yaitu situasi di mana slot yang semula kosong telah terisi oleh pengguna lain di antara waktu pencarian dan waktu konfirmasi.
+
+**c. _Activity Diagram_ — _Import_ Massal via Excel**
+
+_Activity Diagram_ berikut menggambarkan alur aktivitas pada mode _import_ massal.
+
+```mermaid
+flowchart TD
+    Start(["● Mulai"]) --> A["Buka halaman<br/>Penjadwalan Otomatis"]
+    A --> B["Klik tombol<br/>'Import Excel'"]
+    B --> C["Unggah berkas Excel"]
+    C --> D["Klik 'Proses'"]
+
+    D --> E["Baca seluruh baris Excel<br/>(first pass)"]
+    E --> F["Expand baris menjadi<br/>entri jadwal individual<br/>(pagi × n + malam × n)"]
+    F --> G["Urutkan berdasarkan<br/>SKS menurun (descending)"]
+
+    G --> H{"Masih ada entri<br/>yang belum diproses?"}
+    H -- "Tidak" --> L["Tampilkan tabel<br/>preview + ringkasan"]
+
+    H -- "Ya" --> I["Ambil entri berikutnya"]
+    I --> J["Cari slot: iterasi<br/>Hari × Slot × Lab<br/>(triple nested loop)"]
+    J --> K1{"Slot ditemukan?"}
+    K1 -- "Ya" --> K2["Tandai slot sebagai<br/>terpakai (in-memory)"]
+    K2 --> K3["Catat hasil: OK/Warning"]
+    K3 --> H
+    K1 -- "Tidak" --> K4["Catat hasil: Error<br/>+ alasan kegagalan"]
+    K4 --> H
+
+    L --> M{"Admin konfirmasi<br/>import?"}
+    M -- "Tidak (Cancel)" --> End(["● Selesai"])
+    M -- "Ya (Confirm)" --> N["Simpan seluruh jadwal<br/>OK + Warning ke database"]
+    N --> O["Tampilkan notifikasi<br/>'Import berhasil'"]
+    O --> End
+```
+
+Gambar X\. _Activity Diagram_ Import Massal via Excel
+
+**d. _Sequence Diagram_ — Interaksi Komponen pada Penjadwalan Otomatis**
+
+_Sequence Diagram_ berikut menggambarkan interaksi antar komponen perangkat lunak saat proses penjadwalan otomatis (input satuan) berlangsung. Diagram ini menunjukkan bagaimana _ScheduleWizard_ (lapisan presentasi) berinteraksi dengan _SchedulingService_ (lapisan logika bisnis) dan model-model Eloquent (lapisan akses data).
+
+```mermaid
+sequenceDiagram
+    actor Admin as Administrator
+    participant SW as ScheduleWizard<br/>(Filament Page)
+    participant SS as SchedulingService
+    participant Lab as Laboratorium<br/>(Eloquent Model)
+    participant Sch as Schedule<br/>(Eloquent Model)
+    participant TS as TimeSlot<br/>(Eloquent Model)
+    participant DB as MySQL Database
+
+    Admin->>SW: Isi formulir + Klik "Cari Slot Tersedia"
+    SW->>SW: Validasi input (course, jumlah_siswa, sesi)
+
+    Note over SW,DB: STEP 1-2: Database Layer Filtering
+    SW->>Lab: where('is_active', true)<br/>->where('pc_siap', '>=', jumlah_siswa)
+    Lab->>DB: SELECT * FROM laboratoria WHERE ...
+    DB-->>Lab: Daftar lab aktif + kapasitas cukup
+    SW->>Lab: filter() — cek software via Inventory
+    Lab-->>SW: Daftar lab yang memenuhi constraint software
+
+    Note over SW,DB: STEP 3: Slot Availability Check
+    loop Untuk setiap Lab × Hari
+        SW->>SS: getAvailableSlots(lab, day, sks)
+        SS->>Sch: where('laboratorium_id', lab)<br/>->where('day', day)
+        Sch->>DB: SELECT * FROM schedules WHERE ...
+        DB-->>Sch: Jadwal existing di lab+hari
+        SS->>SS: Hitung occupied slot numbers
+        SS->>TS: where('start_time', '>=')<br/>->where('end_time', '<=')
+        TS->>DB: SELECT * FROM time_slots WHERE ...
+        DB-->>TS: Semua slot dalam jam operasional
+        SS->>SS: filter() — slot berturutan kosong
+        SS-->>SW: Slot-slot yang tersedia
+    end
+
+    Note over SW,DB: STEP 4-6: Application Layer Filtering
+    SW->>SW: filter() — slot sesuai rentang sesi
+    SW->>SW: filter() — slot tidak melewati break
+    SW->>SW: sortByDesc() — prioritas lab
+    SW-->>Admin: Tampilkan kartu rekomendasi
+
+    Admin->>SW: Klik kartu rekomendasi
+
+    Note over SW,DB: Double-check + Simpan
+    SW->>SS: hasConflict(lab, day, slot, sks)
+    SS->>Sch: Cek ulang occupied slots
+    Sch->>DB: SELECT * FROM schedules WHERE ...
+    DB-->>Sch: Data terbaru
+    SS-->>SW: false (tidak ada konflik)
+    SW->>Sch: Schedule::create({...})
+    Sch->>DB: INSERT INTO schedules ...
+    DB-->>Sch: Jadwal tersimpan
+    SW-->>Admin: Notifikasi "Jadwal berhasil dibuat"
+```
+
+Gambar X\. _Sequence Diagram_ Penjadwalan Otomatis (Input Satuan)
+
+Berdasarkan _Sequence Diagram_ pada Gambar X, terlihat bahwa proses penjadwalan otomatis melibatkan interaksi antara empat komponen utama:
+
+1. **ScheduleWizard** (Filament Page) sebagai _controller_ yang menerima input dari pengguna dan mengorkestrasi seluruh proses.
+2. **SchedulingService** sebagai _service layer_ yang mengenkapsulasi logika deteksi konflik dan kalkulasi slot.
+3. **Model-model Eloquent** (Laboratorium, Schedule, TimeSlot) sebagai _data access layer_ yang menerjemahkan operasi bisnis menjadi _query_ SQL.
+4. **MySQL Database** sebagai penyimpan data persisten.
+
+Pola interaksi ini menunjukkan pemisahan tanggung jawab (_Separation of Concerns_) yang jelas: lapisan presentasi tidak melakukan _query_ langsung ke basis data, melainkan mendelegasikan logika bisnis ke _service layer_ yang kemudian menggunakan Eloquent ORM untuk mengakses data.
+
 2. ## **Implementasi Sistem** {#implementasi-sistem}
 
 Pada sub-bab ini diuraikan proses implementasi rancangan sistem ke dalam perangkat lunak. Pembahasan mencakup persiapan lingkungan pengembangan, arsitektur komponen perangkat lunak, serta penjelasan alur logika dari setiap komponen utama yang berperan dalam fitur penjadwalan otomatis.
