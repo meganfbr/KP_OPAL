@@ -24,7 +24,7 @@ class HeadphoneResource extends Resource
 {
     protected static ?string $model = Headphone::class;
 
-    protected static ?string $navigationIcon = 'fluentui-headphones-24';
+    protected static ?string $navigationIcon = 'heroicon-o-speaker-wave';
 
     protected static ?string $slug = 'headphone';
 

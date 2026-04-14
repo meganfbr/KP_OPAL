@@ -2,7 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Models\Laboratorium;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Schema;
+use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Spatie\Permission\PermissionRegistrar;
 
@@ -23,15 +26,81 @@ class RolePermissionSeeder extends Seeder
         // Reset cached roles and permissions
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Create super_admin role - required by UserSeeder
-        // Super admin has all permissions via Gate::before in AuthServiceProvider
-        Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
+        // Create super_admin and laboran roles
+        $superAdminRole = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
+        $laboranRole = Role::firstOrCreate(['name' => 'laboran', 'guard_name' => 'web']);
 
-        $this->command->info('✅ Role super_admin created successfully!');
+        // Ensure inventory permissions exist so laboran can CRUD inventory in allowed labs
+        $inventoryPermissions = [
+            'view_any_software::inventory',
+            'view_software::inventory',
+            'create_software::inventory',
+            'update_software::inventory',
+            'delete_software::inventory',
+            'delete_any_software::inventory',
+            'force_delete_software::inventory',
+            'force_delete_any_software::inventory',
+            'restore_software::inventory',
+            'restore_any_software::inventory',
+            'replicate_software::inventory',
+            'reorder_software::inventory',
+        ];
+
+        // Additional permissions for laboran navigation access
+        $navigationPermissions = [
+            'view_any_schedule', // For Jadwal Kuliah
+            'view_schedule',
+            'view-navigation-item::motherboard', // Hardware navigation
+            'view-navigation-item::processor',
+            'view-navigation-item::r::a::m',
+            'view-navigation-item::v::g::a',
+            'view-navigation-item::penyimpanan',
+            'view-navigation-item::d::v::d',
+            'view-navigation-item::p::s::u',
+            'view-navigation-item::keyboard',
+            'view-navigation-item::mouse',
+            'view-navigation-item::monitor',
+            'view-navigation-item::headphone',
+            'view-navigation-item::laboratorium', // Master data
+            'view-navigation-item::klasifikasi::lab',
+            'view-navigation-item::lapor::ptpp', // Pelaporan PTPP
+        ];
+
+        $allLaboranPermissions = array_merge($inventoryPermissions, $navigationPermissions);
+
+        foreach ($allLaboranPermissions as $permissionName) {
+            Permission::firstOrCreate(['name' => $permissionName, 'guard_name' => 'web']);
+        }
+
+        $laboranRole->givePermissionTo($allLaboranPermissions);
+
+        if (Schema::hasTable('laboratoria') && Laboratorium::count() > 0) {
+            $this->createLabPermissions();
+        }
+
+        $this->command->info('✅ Role super_admin and laboran created successfully!');
         $this->command->newLine();
         $this->command->info('📌 Next steps:');
         $this->command->info('   1. Run: php artisan db:seed --class=UserSeeder');
         $this->command->info('   2. Run: php artisan shield:generate --all --panel=admin');
         $this->command->info('   3. Configure lab permissions via Filament Shield UI (/admin/shield/roles)');
+    }
+
+    protected function createLabPermissions(): void
+    {
+        $labActions = ['view', 'manage', 'edit', 'delete'];
+
+        Laboratorium::orderBy('ruang')->get()->each(function (Laboratorium $lab) use ($labActions) {
+            $labSlug = strtolower(str_replace([' ', '.'], ['_', '_'], $lab->ruang));
+
+            foreach ($labActions as $action) {
+                Permission::firstOrCreate([
+                    'name' => "lab_{$labSlug}_{$action}",
+                    'guard_name' => 'web',
+                ]);
+            }
+        });
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
     }
 }

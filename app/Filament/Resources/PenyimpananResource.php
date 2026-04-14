@@ -26,7 +26,7 @@ class PenyimpananResource extends Resource
 {
     protected static ?string $model = Penyimpanan::class;
 
-    protected static ?string $navigationIcon = 'clarity-hard-disk-line';
+    protected static ?string $navigationIcon = 'heroicon-o-circle-stack';
 
     protected static ?string $slug = 'penyimpanan';
 

@@ -24,7 +24,7 @@ class MonitorResource extends Resource
 {
     protected static ?string $model = Monitor::class;
 
-    protected static ?string $navigationIcon = 'mdi-monitor-small';
+    protected static ?string $navigationIcon = 'heroicon-o-tv';
 
     protected static ?string $slug = 'monitor';
 

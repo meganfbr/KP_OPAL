@@ -24,7 +24,7 @@ class DVDResource extends Resource
 {
     protected static ?string $model = DVD::class;
 
-    protected static ?string $navigationIcon = 'clarity-cd-dvd-line';
+    protected static ?string $navigationIcon = 'heroicon-o-document';
 
     protected static ?string $slug = 'dvd';
 

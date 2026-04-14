@@ -23,7 +23,7 @@ class KeyboardResource extends Resource
 {
     protected static ?string $model = Keyboard::class;
 
-    protected static ?string $navigationIcon = 'clarity-keyboard-line';
+    protected static ?string $navigationIcon = 'heroicon-o-command-line';
 
     protected static ?string $slug = 'keyboard';
 

@@ -15,6 +15,7 @@ class RekapInventarisSpec extends Model
         'kode_spek',
         'urutan_kode',
         'fingerprint',
+        'kondisi_pc',
     ];
 
     public function periode(): BelongsTo

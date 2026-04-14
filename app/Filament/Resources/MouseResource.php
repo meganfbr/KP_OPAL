@@ -23,7 +23,7 @@ class MouseResource extends Resource
 {
     protected static ?string $model = Mouse::class;
 
-    protected static ?string $navigationIcon = 'clarity-mouse-line';
+    protected static ?string $navigationIcon = 'heroicon-o-cursor-arrow-rays';
 
     protected static ?string $slug = 'mouse';
 

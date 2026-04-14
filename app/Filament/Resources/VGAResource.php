@@ -25,7 +25,7 @@ class VGAResource extends Resource
 {
     protected static ?string $model = VGA::class;
 
-    protected static ?string $navigationIcon = 'clarity-box-plot-line';
+    protected static ?string $navigationIcon = 'heroicon-o-chart-bar';
 
     protected static ?string $slug = 'vga';
 

@@ -22,7 +22,7 @@ class PSUResource extends Resource
 {
     protected static ?string $model = PSU::class;
 
-    protected static ?string $navigationIcon = 'mdi-cube';
+    protected static ?string $navigationIcon = 'heroicon-o-cube';
 
     protected static ?string $slug = 'psu';
 

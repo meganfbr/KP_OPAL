@@ -44,7 +44,7 @@ class AdminPanelProvider extends PanelProvider
             ->default()
             ->id('admin')
             ->path('admin')
-            ->spa()
+            // ->spa() // Disabled SPA mode to prevent CSRF issues
             ->login(\App\Filament\Pages\Auth\Login::class)
             ->colors([
                 'primary' => '#104b8f',
@@ -135,7 +135,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Jadwal Kuliah (ScheduleResource) - untuk melihat/edit manual
-                if ($user->hasRole('super_admin') || $user->can('view_any_schedule')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view_any_schedule')) {
                     $penjadwalanItems[] = NavigationItem::make('Jadwal Kuliah')
                         ->icon('heroicon-o-calendar-days')
                         ->url(\App\Filament\Resources\ScheduleResource::getUrl())
@@ -157,7 +157,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Pelaporan PTPP - tampilkan untuk semua yang memiliki izin terkait PTPP
-                if ($user->hasRole('super_admin') || $user->can('view-navigation-item', 'lapor::ptpp')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'lapor::ptpp')) {
                     $navigationGroups[] = NavigationGroup::make('Pelaporan PTPP')
                         ->items([
                             NavigationItem::make('PTTP SKT')
@@ -171,7 +171,7 @@ class AdminPanelProvider extends PanelProvider
                 $masterDataItems = [];
 
                 // Data Laboran
-                if ($user->can('view-navigation-item', 'user')) {
+                if ($user->hasRole('super_admin') || $user->can('view-navigation-item', 'user')) {
                     $masterDataItems[] = NavigationItem::make('Data Laboran')
                         ->icon('heroicon-o-users')
                         ->url(\App\Filament\Resources\UserResource::getUrl())
@@ -179,7 +179,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Data Laboratorium
-                if ($user->can('view-navigation-item', 'laboratorium')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'laboratorium')) {
                     $masterDataItems[] = NavigationItem::make('Data Laboratorium')
                         ->icon('heroicon-o-building-office')
                         ->url(\App\Filament\Resources\LaboratoriumResource::getUrl())
@@ -187,15 +187,15 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Data Klasifikasi Lab
-                if ($user->can('view-navigation-item', 'klasifikasi::lab')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'klasifikasi::lab')) {
                     $masterDataItems[] = NavigationItem::make('Data Klasifikasi Lab')
-                        ->icon('fluentui-dual-screen-desktop-24-o')
+                        ->icon('heroicon-o-computer-desktop')
                         ->url(\App\Filament\Resources\KlasifikasiLabResource::getUrl())
                         ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\KlasifikasiLabResource::getRouteBaseName() . '.*'));
                 }
 
                 // Daftar Software
-                if ($user->hasRole('super_admin') || $user->can('view_any_software')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view_any_software')) {
                     $masterDataItems[] = NavigationItem::make('Daftar Software')
                         ->icon('heroicon-o-puzzle-piece')
                         ->url(fn() => '/admin/software')
@@ -212,7 +212,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 //Rekap Inventaris
-                if ($user->hasRole('super_admin')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran')) {
                     $masterDataItems[] = NavigationItem::make('Rekap Inventaris')
                         ->icon('heroicon-o-archive-box')
                         ->url(\App\Filament\Pages\RekapInventaris::getUrl())
@@ -229,15 +229,15 @@ class AdminPanelProvider extends PanelProvider
                 $hardwareItems = [];
 
                 // Motherboard
-                if ($user->can('view-navigation-item', 'motherboard')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'motherboard')) {
                     $hardwareItems[] = NavigationItem::make('Motherboard')
-                        ->icon('mdi-chip')
+                        ->icon('heroicon-o-cpu-chip')
                         ->url(\App\Filament\Resources\MotherboardResource::getUrl())
                         ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\MotherboardResource::getRouteBaseName() . '.*'));
                 }
 
                 // Processor
-                if ($user->can('view-navigation-item', 'processor')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'processor')) {
                     $hardwareItems[] = NavigationItem::make('Processor')
                         ->icon('heroicon-o-cpu-chip')
                         ->url(\App\Filament\Resources\ProcessorResource::getUrl())
@@ -245,73 +245,73 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // RAM
-                if ($user->can('view-navigation-item', 'r::a::m')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'r::a::m')) {
                     $hardwareItems[] = NavigationItem::make('RAM')
-                        ->icon('fluentui-ram-20')
+                        ->icon('heroicon-o-server-stack')
                         ->url(\App\Filament\Resources\RAMResource::getUrl())
                         ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\RAMResource::getRouteBaseName() . '.*'));
                 }
 
                 // VGA
-                if ($user->can('view-navigation-item', 'v::g::a')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'v::g::a')) {
                     $hardwareItems[] = NavigationItem::make('VGA')
-                        ->icon('clarity-box-plot-line')
+                        ->icon('heroicon-o-chart-bar')
                         ->url(\App\Filament\Resources\VGAResource::getUrl())
                         ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\VGAResource::getRouteBaseName() . '.*'));
                 }
 
                 // Penyimpanan
-                if ($user->can('view-navigation-item', 'penyimpanan')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'penyimpanan')) {
                     $hardwareItems[] = NavigationItem::make('Penyimpanan')
-                        ->icon('clarity-hard-disk-line')
+                        ->icon('heroicon-o-circle-stack')
                         ->url(\App\Filament\Resources\PenyimpananResource::getUrl())
                         ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\PenyimpananResource::getRouteBaseName() . '.*'));
                 }
 
                 // DVD
-                if ($user->can('view-navigation-item', 'd::v::d')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'd::v::d')) {
                     $hardwareItems[] = NavigationItem::make('DVD')
-                        ->icon('clarity-cd-dvd-line')
+                        ->icon('heroicon-o-document')
                         ->url(\App\Filament\Resources\DVDResource::getUrl())
                         ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\DVDResource::getRouteBaseName() . '.*'));
                 }
 
                 // PSU
-                if ($user->can('view-navigation-item', 'p::s::u')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'p::s::u')) {
                     $hardwareItems[] = NavigationItem::make('PSU')
-                        ->icon('mdi-cube')
+                        ->icon('heroicon-o-cube')
                         ->url(\App\Filament\Resources\PSUResource::getUrl())
                         ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\PSUResource::getRouteBaseName() . '.*'));
                 }
 
                 // Keyboard
-                if ($user->can('view-navigation-item', 'keyboard')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'keyboard')) {
                     $hardwareItems[] = NavigationItem::make('Keyboard')
-                        ->icon('clarity-keyboard-line')
+                        ->icon('heroicon-o-command-line')
                         ->url(\App\Filament\Resources\KeyboardResource::getUrl())
                         ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\KeyboardResource::getRouteBaseName() . '.*'));
                 }
 
                 // Mouse
-                if ($user->can('view-navigation-item', 'mouse')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'mouse')) {
                     $hardwareItems[] = NavigationItem::make('Mouse')
-                        ->icon('clarity-mouse-line')
+                        ->icon('heroicon-o-cursor-arrow-rays')
                         ->url(\App\Filament\Resources\MouseResource::getUrl())
                         ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\MouseResource::getRouteBaseName() . '.*'));
                 }
 
                 // Monitor
-                if ($user->can('view-navigation-item', 'monitor')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'monitor')) {
                     $hardwareItems[] = NavigationItem::make('Monitor')
-                        ->icon('mdi-monitor-small')
+                        ->icon('heroicon-o-tv')
                         ->url(\App\Filament\Resources\MonitorResource::getUrl())
                         ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\MonitorResource::getRouteBaseName() . '.*'));
                 }
 
                 // Headphone
-                if ($user->can('view-navigation-item', 'headphone')) {
+                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'headphone')) {
                     $hardwareItems[] = NavigationItem::make('Headphone')
-                        ->icon('fluentui-headphones-24')
+                        ->icon('heroicon-o-speaker-wave')
                         ->url(\App\Filament\Resources\HeadphoneResource::getUrl())
                         ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\HeadphoneResource::getRouteBaseName() . '.*'));
                 }

@@ -29,14 +29,8 @@ class LabPermissionServiceProvider extends ServiceProvider
 
         // Wait for the application to boot fully to ensure the database is available
         $this->app->booted(function () {
-            try {
-                // Create custom permissions for each laboratory
-                $this->createLabPermissions();
-            } catch (\Exception $e) {
-                // Log error but don't crash during app startup
-                // Typically would happen during fresh installation before migrations are run
-                logger()->error('Failed to create lab permissions: ' . $e->getMessage());
-            }
+            // Lab permissions creation has been moved to a seeder or should be run manually. 
+            // Running firstOrCreate and forgetCachedPermissions on every request causes huge overhead.
         });
     }
 

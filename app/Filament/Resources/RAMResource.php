@@ -25,7 +25,7 @@ class RAMResource extends Resource
 {
     protected static ?string $model = RAM::class;
 
-    protected static ?string $navigationIcon = 'fluentui-ram-20';
+    protected static ?string $navigationIcon = 'heroicon-o-server-stack';
 
     protected static ?string $slug = 'ram';
 

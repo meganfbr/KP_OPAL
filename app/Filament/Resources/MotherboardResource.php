@@ -23,7 +23,7 @@ class MotherboardResource extends Resource
 {
     protected static ?string $model = Motherboard::class;
 
-    protected static ?string $navigationIcon = 'mdi-chip';
+    protected static ?string $navigationIcon = 'heroicon-o-cpu-chip';
 
     protected static ?string $slug = 'motherboard';
 

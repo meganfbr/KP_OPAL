@@ -36,7 +36,7 @@ class RekapInventaris extends Page
 
     public static function canAccess(): bool
     {
-        return auth()->check() && auth()->user()->hasRole('super_admin');
+        return auth()->check() && (auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('laboran'));
     }
 
     protected function getHeaderActions(): array

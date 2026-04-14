@@ -36,6 +36,24 @@ class PcTable extends Component implements HasForms, HasTable
         $this->tahun = $tahun;
     }
 
+    public function updated($propertyName)
+    {
+        // Reset form state when needed
+        if (str_starts_with($propertyName, 'tableFilters')) {
+            $this->resetTable();
+        }
+    }
+
+    public function resetTable()
+    {
+        $this->resetPage();
+    }
+
+    public function closeModal()
+    {
+        $this->dispatch('close-modal');
+    }
+
     public function table(Table $table): Table
     {
         return $table
@@ -57,7 +75,8 @@ class PcTable extends Component implements HasForms, HasTable
 
                         $spec = $service->findOrCreate(
                             $periodeId,
-                            $data['spec_details'] ?? []
+                            $data['spec_details'] ?? [],
+                            $data['kondisi']
                         );
 
                         $pc = RekapInventarisPc::create([
@@ -269,7 +288,8 @@ class PcTable extends Component implements HasForms, HasTable
                         $service = resolve(\App\Services\RekapInventarisSpecService::class);
 
                         $incomingFingerprint = $service->fingerprintFromDetails(
-                            $data['spec_details'] ?? []
+                            $data['spec_details'] ?? [],
+                            $data['kondisi']
                         );
 
                         if (
@@ -285,7 +305,8 @@ class PcTable extends Component implements HasForms, HasTable
                         } else {
                             $spec = $service->findOrCreate(
                                 $periodeId,
-                                $data['spec_details'] ?? []
+                                $data['spec_details'] ?? [],
+                                $data['kondisi']
                             );
 
                             $record->update([
