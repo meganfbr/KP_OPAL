@@ -27,3 +27,7 @@ Route::get('/rekrutmen', function () {
 Route::get('/visi-misi', function () {
     return view('visimisi');
 });
+Route::get('/inventaris', function () {
+    return view('inventaris');
+})->name('inventaris');
+
