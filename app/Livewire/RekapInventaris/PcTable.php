@@ -28,12 +28,14 @@ class PcTable extends Component implements HasForms, HasTable
     public int $periodeId;
     public int $bulan;
     public int $tahun;
+    public ?int $laboratoriumId = null;
 
-    public function mount(int $periodeId, int $bulan, int $tahun): void
+    public function mount(int $periodeId, int $bulan, int $tahun, ?int $laboratoriumId = null): void
     {
         $this->periodeId = $periodeId;
         $this->bulan = $bulan;
         $this->tahun = $tahun;
+        $this->laboratoriumId = $laboratoriumId;
     }
 
     public function updated($propertyName)
@@ -67,6 +69,7 @@ class PcTable extends Component implements HasForms, HasTable
             ->headerActions([
                 Tables\Actions\CreateAction::make()
                     ->label('Tambah PC')
+                    ->visible(!auth()->user()->hasRole('super_admin'))
                     ->modalWidth('7xl')
                     ->form($this->getPcFormSchema(isEdit: false))
                     ->using(function (array $data) {
@@ -149,6 +152,7 @@ class PcTable extends Component implements HasForms, HasTable
                 Tables\Actions\Action::make('copyPrev')
                     ->label('Copy ke Baris Sebelumnya')
                     ->icon('heroicon-o-arrow-up')
+                    ->visible(!auth()->user()->hasRole('super_admin'))
                     ->color('info')
                     ->requiresConfirmation()
                     ->modalHeading('Copy ke Baris Sebelumnya?')
@@ -204,6 +208,7 @@ class PcTable extends Component implements HasForms, HasTable
                 Tables\Actions\Action::make('copyNext')
                     ->label('Copy ke Baris Berikutnya')
                     ->icon('heroicon-o-arrow-down')
+                    ->visible(!auth()->user()->hasRole('super_admin'))
                     ->color('warning')
                     ->requiresConfirmation()
                     ->modalHeading('Copy ke Baris Berikutnya?')
@@ -248,6 +253,7 @@ class PcTable extends Component implements HasForms, HasTable
 
                 Tables\Actions\EditAction::make()
                     ->modalWidth('7xl')
+                    ->visible(!auth()->user()->hasRole('super_admin'))
                     ->fillForm(function (RekapInventarisPc $record): array {
                         $details = [];
 
@@ -322,6 +328,7 @@ class PcTable extends Component implements HasForms, HasTable
                     }),
 
                 Tables\Actions\DeleteAction::make()
+                    ->visible(!auth()->user()->hasRole('super_admin'))
                     ->after(function () {
                         $periodeId = $this->periodeId;
                         $service = resolve(\App\Services\RekapInventarisSpecService::class);

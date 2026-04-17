@@ -117,6 +117,12 @@ class RekapInventarisSpecService
 
         // Batch all updates inside a single transaction for speed
         DB::transaction(function () use ($specs, $tahun) {
+            // First step: Rename to temporary names to avoid unique constraint conflicts
+            foreach ($specs as $spec) {
+                $spec->update(['kode_spek' => 'TEMP-' . $spec->id . '-' . time()]);
+            }
+
+            // Second step: Apply the final order-based names
             $order = 1;
             foreach ($specs as $spec) {
                 $spec->update([

@@ -3,10 +3,23 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class Motherboard extends Model
 {
-    protected $fillable = [
+    use LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "Motherboard telah di-{$eventName}")
+            ->useLogName('hardware');
+    }
+
+        protected $fillable = [
         'merk',
         'tipe',
         'tahun',

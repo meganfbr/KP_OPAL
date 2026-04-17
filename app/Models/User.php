@@ -8,11 +8,22 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Spatie\Permission\Traits\HasRoles;
 use App\Traits\HasLabPermissions;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class User extends Authenticatable
 {
     /** @use HasFactory<\Database\Factories\UserFactory> */
-    use HasFactory, Notifiable,HasRoles, HasLabPermissions;
+    use HasFactory, Notifiable, HasRoles, HasLabPermissions, LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['name', 'email', 'npp', 'no_phone', 'posisi', 'tanggal_masuk', 'tanggal_keluar'])
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "User telah di-{$eventName}")
+            ->useLogName('user');
+    }
 
     /**
      * The attributes that are mass assignable.

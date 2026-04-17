@@ -62,14 +62,15 @@ class UserSeeder extends Seeder
                 ]
             );
 
-            $user->assignRole('laboran');
+            $labRole = 'Laboran_' . strtoupper($labSlug);
+            $user->syncRoles([$labRole]);
             $user->givePermissionTo($this->getLabPermissions($labSlug));
 
             $userRows[] = [
                 $user->name,
                 $userData['email'],
                 $user->npp,
-                'laboran',
+                $labRole,
                 $userData['password'],
             ];
         }

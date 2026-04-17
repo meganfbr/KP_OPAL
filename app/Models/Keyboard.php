@@ -3,10 +3,23 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class Keyboard extends Model
 {
-    protected $fillable = [
+    use LogsActivity;
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logAll()
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "Keyboard telah di-{$eventName}")
+            ->useLogName('hardware');
+    }
+
+        protected $fillable = [
         'merk',
         'tipe',
         'tahun',

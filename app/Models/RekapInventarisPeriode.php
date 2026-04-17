@@ -10,10 +10,16 @@ class RekapInventarisPeriode extends Model
     protected $table = 'rekap_inventaris_periodes';
 
     protected $fillable = [
+        'laboratorium_id',
         'bulan',
         'tahun',
         'nama_periode',
     ];
+
+    public function laboratorium(): \Illuminate\Database\Eloquent\Relations\BelongsTo
+    {
+        return $this->belongsTo(Laboratorium::class);
+    }
 
     public function pcs(): HasMany
     {

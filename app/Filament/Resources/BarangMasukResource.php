@@ -12,10 +12,31 @@ use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class BarangMasukResource extends Resource
 {
+    public static function canCreate(): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
     protected static ?string $model = BarangMasuk::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-arrow-down-tray';

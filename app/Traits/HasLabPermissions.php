@@ -35,7 +35,10 @@ trait HasLabPermissions
             $labName = $lab;
         }
 
-        $labSlug = strtolower(str_replace([' ', '.'], ['_', '_'], $labName));
+        // Strip "LAB " from the lab name if exists, then create the slug
+        $cleanedName = str_ireplace('LAB ', '', $labName);
+        $labSlug = strtolower(str_replace([' ', '.'], ['_', '_'], trim($cleanedName)));
+        
         // Format: lab_{slug}_{action}
         $permissionName = "lab_{$labSlug}_{$action}";
 

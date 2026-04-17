@@ -11,143 +11,247 @@ use App\Models\RekapInventarisPc;
 use App\Models\RekapInventarisSpec;
 use App\Models\RekapInventarisPeriode;
 use App\Models\RekapInventarisSpecDetail;
+use App\Models\Laboratorium;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Concerns\InteractsWithForms;
+use Filament\Actions\Concerns\InteractsWithActions;
+use Filament\Forms\Contracts\HasForms;
+use Filament\Actions\Contracts\HasActions;
+use Filament\Forms\Form;
+use Maatwebsite\Excel\Facades\Excel;
+use App\Exports\RekapInventarisExport;
+use Barryvdh\DomPDF\Facade\Pdf;
 
-class RekapInventaris extends Page
+class RekapInventaris extends Page implements HasForms, HasActions
 {
+    use InteractsWithForms;
+    use InteractsWithActions;
+
     protected static ?string $navigationIcon = 'heroicon-o-computer-desktop';
     protected static string $view = 'filament.pages.rekap-inventaris';
     protected static ?string $title = 'Rekap Inventaris';
     protected static ?string $slug = 'rekap-inventaris';
+    protected static ?string $navigationGroup = 'Inventaris';
 
     public ?int $periodeId = null;
     public ?int $bulan = null;
     public ?int $tahun = null;
+    public ?int $laboratoriumId = null;
+    public ?string $laboratoriumNama = null;
+
+    public ?array $data = [];
 
     public function mount(): void
     {
         $now = Carbon::now();
+        $user = auth()->user();
+        $isSuperAdmin = $user->hasRole('super_admin');
 
+        // 1. Tentukan Laboratorium
+        if ($isSuperAdmin) {
+            $this->laboratoriumId = (int) request()->query('lab', Laboratorium::first()?->id);
+        } else {
+            $role = $user->roles->firstWhere(fn ($r) => str_starts_with($r->name, 'Laboran_'));
+            if ($role) {
+                $labSlug = str_replace('Laboran_', '', $role->name);
+                $labInfo = Laboratorium::where('ruang', 'LAB ' . strtoupper($labSlug))->first();
+                if ($labInfo) {
+                    $this->laboratoriumId = $labInfo->id;
+                }
+            }
+        }
+
+        // Update nama lab
+        $labInfo = Laboratorium::find($this->laboratoriumId);
+        $this->laboratoriumNama = $labInfo?->ruang;
+
+        // 2. Tentukan Periode
         $this->bulan = (int) request()->query('bulan', $now->month);
         $this->tahun = (int) request()->query('tahun', $now->year);
 
-        $periode = $this->getOrCreatePeriode($this->bulan, $this->tahun);
-        $this->periodeId = $periode->id;
+        if (request()->query('periode_id')) {
+            $this->periodeId = (int) request()->query('periode_id');
+            $periode = RekapInventarisPeriode::find($this->periodeId);
+            if ($periode) {
+                $this->bulan = $periode->bulan;
+                $this->tahun = $periode->tahun;
+                // Super admin: update lab context berdasarkan periode yang dipilih
+                if ($isSuperAdmin && $periode->laboratorium_id) {
+                    $this->laboratoriumId = $periode->laboratorium_id;
+                    $this->laboratoriumNama = $periode->laboratorium?->ruang;
+                }
+            }
+        } else {
+            if ($isSuperAdmin) {
+                // Super admin: jangan buat periode baru, cari yang existing saja
+                $periode = RekapInventarisPeriode::where('laboratorium_id', $this->laboratoriumId)
+                    ->where('bulan', $this->bulan)
+                    ->where('tahun', $this->tahun)
+                    ->first();
+
+                if (!$periode) {
+                    // Ambil periode terakhir untuk lab ini
+                    $periode = RekapInventarisPeriode::where('laboratorium_id', $this->laboratoriumId)
+                        ->orderByDesc('tahun')->orderByDesc('bulan')
+                        ->first();
+                }
+
+                if ($periode) {
+                    $this->periodeId = $periode->id;
+                    $this->bulan = $periode->bulan;
+                    $this->tahun = $periode->tahun;
+                } else {
+                    $this->periodeId = null;
+                }
+            } else {
+                // Laboran: boleh auto-create periode
+                $periode = $this->getOrCreatePeriode($this->bulan, $this->tahun, $this->laboratoriumId);
+                $this->periodeId = $periode->id;
+            }
+        }
+
+        $this->form->fill([
+            'lab_id' => $this->laboratoriumId,
+            'periode_id' => $this->periodeId,
+        ]);
     }
 
     public static function canAccess(): bool
     {
-        return auth()->check() && (auth()->user()->hasRole('super_admin') || auth()->user()->hasRole('laboran'));
+        $user = auth()->user();
+        if (!$user) return false;
+        if ($user->hasRole('super_admin')) return true;
+        return $user->roles->pluck('name')->contains(fn ($n) => str_starts_with($n, 'Laboran_'));
+    }
+
+    public function form(Form $form): Form
+    {
+        return $form
+            ->schema([
+                \Filament\Forms\Components\Grid::make(2)
+                    ->schema([
+                        Select::make('lab_id')
+                            ->label('Pilih Ruangan')
+                            ->options(Laboratorium::orderBy('ruang')->pluck('ruang', 'id'))
+                            ->searchable()
+                            ->required()
+                            ->live()
+                            ->hidden(!auth()->user()->hasRole('super_admin'))
+                            ->afterStateUpdated(function ($state) {
+                                $this->redirect(static::getUrl(['lab' => $state, 'bulan' => $this->bulan, 'tahun' => $this->tahun]));
+                            }),
+
+                        Select::make('periode_id')
+                            ->label('Pilih Periode Rekap')
+                            ->options(
+                                RekapInventarisPeriode::query()
+                                    ->where('laboratorium_id', $this->laboratoriumId)
+                                    ->orderByDesc('tahun')
+                                    ->orderByDesc('bulan')
+                                    ->get()
+                                    ->pluck('nama_periode', 'id')
+                            )
+                            ->searchable()
+                            ->required()
+                            ->live()
+                            ->afterStateUpdated(function ($state) {
+                                $this->redirect(static::getUrl(['periode_id' => $state]));
+                            }),
+                    ]),
+            ])
+            ->statePath('data');
     }
 
     protected function getHeaderActions(): array
     {
         return [
-            Action::make('sebelumnya')
-                ->label('Sebelumnya')
-                ->icon('heroicon-o-chevron-left')
-                ->url(fn () => static::getUrl([
-                    'bulan' => $this->getPreviousMonth()['bulan'],
-                    'tahun' => $this->getPreviousMonth()['tahun'],
-                ])),
-
-            Action::make('selanjutnya')
-                ->label('Selanjutnya')
-                ->icon('heroicon-o-chevron-right')
-                ->url(fn () => static::getUrl([
-                    'bulan' => $this->getNextMonth()['bulan'],
-                    'tahun' => $this->getNextMonth()['tahun'],
-                ])),
+            \Filament\Actions\ActionGroup::make([
+                Action::make('export_pdf')
+                    ->label('Download PDF')
+                    ->icon('heroicon-o-document-text')
+                    ->action(fn () => $this->downloadPdf()),
+                Action::make('export_excel')
+                    ->label('Download Excel')
+                    ->icon('heroicon-o-table-cells')
+                    ->action(fn () => $this->downloadExcel()),
+                Action::make('export_csv')
+                    ->label('Download CSV')
+                    ->icon('heroicon-o-document')
+                    ->action(fn () => $this->downloadCsv()),
+            ])
+            ->label('Download Data')
+            ->icon('heroicon-o-arrow-down-tray')
+            ->color('success')
+            ->button(),
 
             Action::make('copyBulanSebelumnya')
-                ->label('Copy dari Bulan Sebelumnya')
+                ->label('Copy Bulan Lalu')
                 ->icon('heroicon-o-document-duplicate')
                 ->color('warning')
+                ->visible(!auth()->user()->hasRole('super_admin'))
                 ->requiresConfirmation()
-                ->modalHeading('Copy Data Bulan Sebelumnya')
-                ->modalDescription('Semua data PC dan detail spek dari bulan sebelumnya akan disalin ke bulan aktif. Proses ini hanya bisa dilakukan jika bulan aktif masih kosong.')
-                ->modalSubmitActionLabel('Ya, Copy Data')
                 ->action(function () {
                     $currentPeriod = RekapInventarisPeriode::findOrFail($this->periodeId);
-
                     if (! $this->isPeriodCompletelyEmpty($currentPeriod->id)) {
-                        Notification::make()
-                            ->title('Copy dibatalkan')
-                            ->body('Periode ini sudah memiliki data. Hapus dulu isi halamannya jika ingin copy ulang.')
-                            ->danger()
-                            ->send();
-
+                        Notification::make()->title('Gagal')->body('Periode ini sudah memiliki data.')->danger()->send();
                         return;
                     }
-
                     $previousPeriod = $this->getPreviousPeriod($currentPeriod);
-
-                    if (! $previousPeriod) {
-                        Notification::make()
-                            ->title('Copy gagal')
-                            ->body('Periode sebelumnya tidak ditemukan.')
-                            ->warning()
-                            ->send();
-
+                    if (!$previousPeriod) {
+                        Notification::make()->title('Gagal')->body('Periode sebelumnya tidak ditemukan.')->warning()->send();
                         return;
                     }
-
-                    if ($this->isPeriodCompletelyEmpty($previousPeriod->id)) {
-                        Notification::make()
-                            ->title('Copy gagal')
-                            ->body('Periode sebelumnya ada, tetapi tidak memiliki data untuk disalin.')
-                            ->warning()
-                            ->send();
-
-                        return;
-                    }
-
                     $this->copyAllDataFromPeriod($previousPeriod->id, $currentPeriod->id);
-
-                    Notification::make()
-                        ->title('Copy berhasil')
-                        ->body("Data dari {$previousPeriod->nama_periode} berhasil disalin ke {$currentPeriod->nama_periode}.")
-                        ->success()
-                        ->send();
-
-                    $this->redirect(static::getUrl([
-                        'bulan' => $this->bulan,
-                        'tahun' => $this->tahun,
-                    ]));
+                    Notification::make()->title('Berhasil')->body("Data disalin dari {$previousPeriod->nama_periode}.")->success()->send();
+                    $this->refresh();
                 }),
 
             Action::make('hapusIsiHalaman')
-                ->label('Hapus Isi Halaman')
+                ->label('Hapus Halaman')
                 ->icon('heroicon-o-trash')
                 ->color('danger')
+                ->visible(!auth()->user()->hasRole('super_admin'))
                 ->requiresConfirmation()
-                ->modalHeading('Hapus Semua Isi Halaman?')
-                ->modalDescription(fn () => "Semua data pada periode {$this->periodeLabel} akan dihapus. Tindakan ini tidak bisa dibatalkan.")
-                ->modalSubmitActionLabel('Ya, Hapus Semua Isi Halaman')
                 ->action(function () {
-                    if ($this->isPeriodCompletelyEmpty($this->periodeId)) {
-                        Notification::make()
-                            ->title('Tidak ada data')
-                            ->body("Periode {$this->periodeLabel} sudah kosong.")
-                            ->warning()
-                            ->send();
-
-                        return;
-                    }
-
                     $this->deleteAllDataInPeriod($this->periodeId);
-
-                    Notification::make()
-                        ->title('Berhasil dihapus')
-                        ->body("Semua isi periode {$this->periodeLabel} berhasil dihapus.")
-                        ->success()
-                        ->send();
-
-                    $this->redirect(static::getUrl([
-                        'bulan' => $this->bulan,
-                        'tahun' => $this->tahun,
-                    ]));
+                    Notification::make()->title('Berhasil')->body("Data dihapus.")->success()->send();
+                    $this->refresh();
                 }),
         ];
+    }
+
+    public function downloadPdf()
+    {
+        $periode = RekapInventarisPeriode::with('laboratorium')->findOrFail($this->periodeId);
+        $pcs = RekapInventarisPc::where('rekap_inventaris_periode_id', $this->periodeId)
+            ->with(['spec.details'])
+            ->orderByRaw('CAST(SUBSTRING(no_pc, 2) AS UNSIGNED)')
+            ->get();
+
+        $pdf = Pdf::loadView('pdf.rekap-inventaris', [
+            'periode' => $periode,
+            'pcs' => $pcs,
+            'title' => 'Rekap Inventaris PC - ' . $periode->laboratorium?->ruang
+        ])->setPaper('a4', 'landscape');
+
+        return response()->streamDownload(fn () => print($pdf->output()), "Rekap_{$periode->nama_periode}_{$periode->laboratorium?->ruang}.pdf");
+    }
+
+    public function downloadExcel()
+    {
+        $periode = RekapInventarisPeriode::with('laboratorium')->findOrFail($this->periodeId);
+        return Excel::download(new RekapInventarisExport($this->periodeId), "Rekap_{$periode->nama_periode}_{$periode->laboratorium?->ruang}.xlsx");
+    }
+
+    public function downloadCsv()
+    {
+        $periode = RekapInventarisPeriode::with('laboratorium')->findOrFail($this->periodeId);
+        return Excel::download(new RekapInventarisExport($this->periodeId), "Rekap_{$periode->nama_periode}_{$periode->laboratorium?->ruang}.csv", \Maatwebsite\Excel\Excel::CSV);
+    }
+
+    public function refresh()
+    {
+        $this->redirect(static::getUrl(['periode_id' => $this->periodeId]));
     }
 
     public function getPeriodeLabelProperty(): string
@@ -155,83 +259,44 @@ class RekapInventaris extends Page
         return $this->getNamaPeriode($this->bulan, $this->tahun);
     }
 
-    protected function getPreviousMonth(): array
-    {
-        $date = Carbon::create($this->tahun, $this->bulan, 1)->subMonth();
-
-        return [
-            'bulan' => $date->month,
-            'tahun' => $date->year,
-        ];
-    }
-
-    protected function getNextMonth(): array
-    {
-        $date = Carbon::create($this->tahun, $this->bulan, 1)->addMonth();
-
-        return [
-            'bulan' => $date->month,
-            'tahun' => $date->year,
-        ];
-    }
-
-    protected function getOrCreatePeriode(int $bulan, int $tahun): RekapInventarisPeriode
+    protected function getOrCreatePeriode(int $bulan, int $tahun, ?int $labId): RekapInventarisPeriode
     {
         return RekapInventarisPeriode::firstOrCreate(
-            [
-                'bulan' => $bulan,
-                'tahun' => $tahun,
-            ],
-            [
-                'nama_periode' => $this->getNamaPeriode($bulan, $tahun),
-            ]
+            ['bulan' => $bulan, 'tahun' => $tahun, 'laboratorium_id' => $labId],
+            ['nama_periode' => $this->getNamaPeriode($bulan, $tahun)]
         );
     }
 
     protected function getPreviousPeriod(RekapInventarisPeriode $currentPeriod): ?RekapInventarisPeriode
     {
         return RekapInventarisPeriode::query()
+            ->where('laboratorium_id', $currentPeriod->laboratorium_id)
             ->where(function ($query) use ($currentPeriod) {
                 $query->where('tahun', '<', $currentPeriod->tahun)
-                    ->orWhere(function ($subQuery) use ($currentPeriod) {
-                        $subQuery->where('tahun', $currentPeriod->tahun)
-                            ->where('bulan', '<', $currentPeriod->bulan);
-                    });
+                    ->orWhere(fn ($q) => $q->where('tahun', $currentPeriod->tahun)->where('bulan', '<', $currentPeriod->bulan));
             })
-            ->orderByDesc('tahun')
-            ->orderByDesc('bulan')
-            ->first();
+            ->orderByDesc('tahun')->orderByDesc('bulan')->first();
     }
 
     protected function isPeriodCompletelyEmpty(int $periodeId): bool
     {
-        return RekapInventarisPc::query()
-            ->where('rekap_inventaris_periode_id', $periodeId)
-            ->count() === 0
-            && RekapInventarisSpec::query()
-                ->where('rekap_inventaris_periode_id', $periodeId)
-                ->count() === 0;
+        return RekapInventarisPc::where('rekap_inventaris_periode_id', $periodeId)->count() === 0
+            && RekapInventarisSpec::where('rekap_inventaris_periode_id', $periodeId)->count() === 0;
     }
 
     protected function copyAllDataFromPeriod(int $fromPeriodeId, int $toPeriodeId): void
     {
         DB::transaction(function () use ($fromPeriodeId, $toPeriodeId) {
             $specMap = [];
-
-            $oldSpecs = RekapInventarisSpec::query()
-                ->where('rekap_inventaris_periode_id', $fromPeriodeId)
-                ->with('details')
-                ->orderBy('urutan_kode')
-                ->get();
-
+            $oldSpecs = RekapInventarisSpec::where('rekap_inventaris_periode_id', $fromPeriodeId)->with('details')->get();
             foreach ($oldSpecs as $oldSpec) {
                 $newSpec = RekapInventarisSpec::create([
                     'rekap_inventaris_periode_id' => $toPeriodeId,
                     'kode_spek' => $oldSpec->kode_spek,
                     'urutan_kode' => $oldSpec->urutan_kode,
                     'fingerprint' => md5($toPeriodeId . '|' . $oldSpec->fingerprint),
+                    'kondisi_pc' => $oldSpec->kondisi_pc,
                 ]);
-
                 foreach ($oldSpec->details as $detail) {
                     RekapInventarisSpecDetail::create([
                         'rekap_inventaris_spec_id' => $newSpec->id,
@@ -242,15 +307,9 @@ class RekapInventaris extends Page
                         'urutan' => $detail->urutan,
                     ]);
                 }
-
                 $specMap[$oldSpec->id] = $newSpec->id;
             }
-
-            $oldPcs = RekapInventarisPc::query()
-                ->where('rekap_inventaris_periode_id', $fromPeriodeId)
-                ->orderBy('id')
-                ->get();
-
+            $oldPcs = RekapInventarisPc::where('rekap_inventaris_periode_id', $fromPeriodeId)->get();
             foreach ($oldPcs as $oldPc) {
                 RekapInventarisPc::create([
                     'rekap_inventaris_periode_id' => $toPeriodeId,
@@ -266,33 +325,14 @@ class RekapInventaris extends Page
     protected function deleteAllDataInPeriod(int $periodeId): void
     {
         DB::transaction(function () use ($periodeId) {
-            RekapInventarisPc::query()
-                ->where('rekap_inventaris_periode_id', $periodeId)
-                ->delete();
-
-            RekapInventarisSpec::query()
-                ->where('rekap_inventaris_periode_id', $periodeId)
-                ->delete();
+            RekapInventarisPc::where('rekap_inventaris_periode_id', $periodeId)->delete();
+            RekapInventarisSpec::where('rekap_inventaris_periode_id', $periodeId)->delete();
         });
     }
 
     protected function getNamaPeriode(int $bulan, int $tahun): string
     {
-        $namaBulan = [
-            1 => 'Januari',
-            2 => 'Februari',
-            3 => 'Maret',
-            4 => 'April',
-            5 => 'Mei',
-            6 => 'Juni',
-            7 => 'Juli',
-            8 => 'Agustus',
-            9 => 'September',
-            10 => 'Oktober',
-            11 => 'November',
-            12 => 'Desember',
-        ];
-
+        $namaBulan = [1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'];
         return ($namaBulan[$bulan] ?? 'Bulan Tidak Valid') . ' ' . $tahun;
     }
 }

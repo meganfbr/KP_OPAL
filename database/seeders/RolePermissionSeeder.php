@@ -26,11 +26,10 @@ class RolePermissionSeeder extends Seeder
         // Reset cached roles and permissions
         app()[PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Create super_admin and laboran roles
+        // Create super_admin role
         $superAdminRole = Role::firstOrCreate(['name' => 'super_admin', 'guard_name' => 'web']);
-        $laboranRole = Role::firstOrCreate(['name' => 'laboran', 'guard_name' => 'web']);
 
-        // Ensure inventory permissions exist so laboran can CRUD inventory in allowed labs
+        // Define generic permissions needed for laboran roles
         $inventoryPermissions = [
             'view_any_software::inventory',
             'view_software::inventory',
@@ -46,11 +45,10 @@ class RolePermissionSeeder extends Seeder
             'reorder_software::inventory',
         ];
 
-        // Additional permissions for laboran navigation access
         $navigationPermissions = [
-            'view_any_schedule', // For Jadwal Kuliah
+            'view_any_schedule',
             'view_schedule',
-            'view-navigation-item::motherboard', // Hardware navigation
+            'view-navigation-item::motherboard',
             'view-navigation-item::processor',
             'view-navigation-item::r::a::m',
             'view-navigation-item::v::g::a',
@@ -61,22 +59,54 @@ class RolePermissionSeeder extends Seeder
             'view-navigation-item::mouse',
             'view-navigation-item::monitor',
             'view-navigation-item::headphone',
-            'view-navigation-item::laboratorium', // Master data
+            'view-navigation-item::laboratorium',
             'view-navigation-item::klasifikasi::lab',
-            'view-navigation-item::lapor::ptpp', // Pelaporan PTPP
+            'view-navigation-item::lapor::ptpp',
         ];
 
         $allLaboranPermissions = array_merge($inventoryPermissions, $navigationPermissions);
 
+        // Ensure all permissions exist
         foreach ($allLaboranPermissions as $permissionName) {
             Permission::firstOrCreate(['name' => $permissionName, 'guard_name' => 'web']);
         }
 
-        $laboranRole->givePermissionTo($allLaboranPermissions);
+        // Create lab‑specific roles and assign permissions
+        $labs = [
+            'd2a' => 'Laboran_D2A',
+            'd2b' => 'Laboran_D2B',
+            'd2c' => 'Laboran_D2C',
+            'd2d' => 'Laboran_D2D',
+            'd2e' => 'Laboran_D2E',
+            'd2f' => 'Laboran_D2F',
+            'd2g' => 'Laboran_D2G',
+            'd2h' => 'Laboran_D2H',
+            'd2i' => 'Laboran_D2I',
+            'd2j' => 'Laboran_D2J',
+            'd2k' => 'Laboran_D2K',
+            'd3l' => 'Laboran_D3L',
+            'd3m' => 'Laboran_D3M',
+            'd3n' => 'Laboran_D3N',
+        ];
 
+        foreach ($labs as $slug => $roleName) {
+            $role = Role::firstOrCreate(['name' => $roleName, 'guard_name' => 'web']);
+            $role->givePermissionTo($allLaboranPermissions);
+            $role->givePermissionTo("lab_{$slug}_view");
+        }
+
+        // Create lab permissions (view, manage, edit, delete) if labs exist
         if (Schema::hasTable('laboratoria') && Laboratorium::count() > 0) {
             $this->createLabPermissions();
         }
+
+        $this->command->info('✅ Roles and permissions created successfully!');
+        $this->command->newLine();
+        $this->command->info('📌 Next steps:');
+        $this->command->info('   1. Run: php artisan db:seed --class=UserSeeder');
+        $this->command->info('   2. Run: php artisan shield:generate --all --panel=admin');
+        $this->command->info('   3. Configure lab permissions via Filament Shield UI (/admin/shield/roles)');
+
 
         $this->command->info('✅ Role super_admin and laboran created successfully!');
         $this->command->newLine();

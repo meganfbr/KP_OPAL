@@ -18,10 +18,31 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class MonitorResource extends Resource
 {
+    public static function canCreate(): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
     protected static ?string $model = Monitor::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-tv';

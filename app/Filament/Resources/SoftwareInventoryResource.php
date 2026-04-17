@@ -16,10 +16,31 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Model;
 
 class SoftwareInventoryResource extends Resource
 {
     protected static ?string $model = Inventory::class;
+
+    public static function canCreate(): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
 
     protected static ?string $modelLabel = 'Inventaris Software';
     protected static ?string $pluralModelLabel = 'Inventaris Software';

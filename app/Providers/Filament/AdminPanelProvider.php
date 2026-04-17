@@ -90,6 +90,11 @@ class AdminPanelProvider extends PanelProvider
                 $user = auth()->user();
                 $navigationGroups = [];
 
+                // Helper untuk mengecek apakah user adalah salah satu role laboran
+                $isLaboran = $user->roles->pluck('name')->contains(function ($name) {
+                    return str_starts_with($name, 'Laboran_');
+                });
+
                 // Menu Utama (Dashboard) - selalu tampilkan untuk semua user
                 $navigationGroups[] = NavigationGroup::make('Menu Utama')
                     ->items([
@@ -135,7 +140,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Jadwal Kuliah (ScheduleResource) - untuk melihat/edit manual
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view_any_schedule')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view_any_schedule')) {
                     $penjadwalanItems[] = NavigationItem::make('Jadwal Kuliah')
                         ->icon('heroicon-o-calendar-days')
                         ->url(\App\Filament\Resources\ScheduleResource::getUrl())
@@ -157,7 +162,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Pelaporan PTPP - tampilkan untuk semua yang memiliki izin terkait PTPP
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'lapor::ptpp')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'lapor::ptpp')) {
                     $navigationGroups[] = NavigationGroup::make('Pelaporan PTPP')
                         ->items([
                             NavigationItem::make('PTTP SKT')
@@ -178,8 +183,9 @@ class AdminPanelProvider extends PanelProvider
                         ->isActiveWhen(fn() => request()->routeIs(\App\Filament\Resources\UserResource::getRouteBaseName() . '.*'));
                 }
 
+
                 // Data Laboratorium
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'laboratorium')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'laboratorium')) {
                     $masterDataItems[] = NavigationItem::make('Data Laboratorium')
                         ->icon('heroicon-o-building-office')
                         ->url(\App\Filament\Resources\LaboratoriumResource::getUrl())
@@ -187,7 +193,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Data Klasifikasi Lab
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'klasifikasi::lab')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'klasifikasi::lab')) {
                     $masterDataItems[] = NavigationItem::make('Data Klasifikasi Lab')
                         ->icon('heroicon-o-computer-desktop')
                         ->url(\App\Filament\Resources\KlasifikasiLabResource::getUrl())
@@ -195,11 +201,49 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Daftar Software
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view_any_software')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view_any_software')) {
                     $masterDataItems[] = NavigationItem::make('Daftar Software')
                         ->icon('heroicon-o-puzzle-piece')
                         ->url(fn() => '/admin/software')
                         ->isActiveWhen(fn() => request()->routeIs('filament.admin.resources.software.*'));
+                }
+
+                // Rekap Inventaris
+                if ($user->hasRole('super_admin') || $isLaboran) {
+                    $masterDataItems[] = NavigationItem::make('Rekap Inventaris')
+                        ->icon('heroicon-o-clipboard-document-list')
+                        ->url(fn() => \App\Filament\Pages\RekapInventaris::getUrl())
+                        ->isActiveWhen(fn() => request()->routeIs('filament.admin.pages.rekap-inventaris'));
+
+                    // Inventaris PC
+                    $masterDataItems[] = NavigationItem::make('Inventaris PC')
+                        ->icon('heroicon-o-computer-desktop')
+                        ->url(fn() => PCInventoryResource::getUrl('index'))
+                        ->isActiveWhen(fn() => request()->routeIs(PCInventoryResource::getRouteBaseName() . '.*'));
+
+                    // Inventaris Non-PC
+                    $masterDataItems[] = NavigationItem::make('Inventaris Non-PC')
+                        ->icon('heroicon-o-cpu-chip')
+                        ->url(fn() => NonPCInventoryResource::getUrl('index'))
+                        ->isActiveWhen(fn() => request()->routeIs(NonPCInventoryResource::getRouteBaseName() . '.*'));
+
+                    // Inventaris Software
+                    $masterDataItems[] = NavigationItem::make('Inventaris Software')
+                        ->icon('heroicon-o-code-bracket-square')
+                        ->url(fn() => SoftwareInventoryResource::getUrl('index'))
+                        ->isActiveWhen(fn() => request()->routeIs(SoftwareInventoryResource::getRouteBaseName() . '.*'));
+
+                    // Barang Masuk
+                    $masterDataItems[] = NavigationItem::make('Barang Masuk')
+                        ->icon('heroicon-o-arrow-down-tray')
+                        ->url(fn() => BarangMasukResource::getUrl('index'))
+                        ->isActiveWhen(fn() => request()->routeIs(BarangMasukResource::getRouteBaseName() . '.*'));
+
+                    // Barang Keluar
+                    $masterDataItems[] = NavigationItem::make('Barang Keluar')
+                        ->icon('heroicon-o-arrow-up-tray')
+                        ->url(fn() => BarangKeluarResource::getUrl('index'))
+                        ->isActiveWhen(fn() => request()->routeIs(BarangKeluarResource::getRouteBaseName() . '.*'));
                 }
             
 
@@ -211,13 +255,7 @@ class AdminPanelProvider extends PanelProvider
                         ->isActiveWhen(fn() => request()->routeIs('filament.admin.resources.shield.roles.*'));
                 }
 
-                //Rekap Inventaris
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran')) {
-                    $masterDataItems[] = NavigationItem::make('Rekap Inventaris')
-                        ->icon('heroicon-o-archive-box')
-                        ->url(\App\Filament\Pages\RekapInventaris::getUrl())
-                        ->isActiveWhen(fn() => request()->routeIs('filament.admin.pages.rekap-inventaris'));
-                }
+
 
                 // Tambahkan grup MASTER DATA jika ada item di dalamnya
                 if (count($masterDataItems) > 0) {
@@ -229,7 +267,7 @@ class AdminPanelProvider extends PanelProvider
                 $hardwareItems = [];
 
                 // Motherboard
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'motherboard')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'motherboard')) {
                     $hardwareItems[] = NavigationItem::make('Motherboard')
                         ->icon('heroicon-o-cpu-chip')
                         ->url(\App\Filament\Resources\MotherboardResource::getUrl())
@@ -237,7 +275,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Processor
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'processor')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'processor')) {
                     $hardwareItems[] = NavigationItem::make('Processor')
                         ->icon('heroicon-o-cpu-chip')
                         ->url(\App\Filament\Resources\ProcessorResource::getUrl())
@@ -245,7 +283,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // RAM
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'r::a::m')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'r::a::m')) {
                     $hardwareItems[] = NavigationItem::make('RAM')
                         ->icon('heroicon-o-server-stack')
                         ->url(\App\Filament\Resources\RAMResource::getUrl())
@@ -253,7 +291,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // VGA
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'v::g::a')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'v::g::a')) {
                     $hardwareItems[] = NavigationItem::make('VGA')
                         ->icon('heroicon-o-chart-bar')
                         ->url(\App\Filament\Resources\VGAResource::getUrl())
@@ -261,7 +299,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Penyimpanan
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'penyimpanan')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'penyimpanan')) {
                     $hardwareItems[] = NavigationItem::make('Penyimpanan')
                         ->icon('heroicon-o-circle-stack')
                         ->url(\App\Filament\Resources\PenyimpananResource::getUrl())
@@ -269,7 +307,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // DVD
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'd::v::d')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'd::v::d')) {
                     $hardwareItems[] = NavigationItem::make('DVD')
                         ->icon('heroicon-o-document')
                         ->url(\App\Filament\Resources\DVDResource::getUrl())
@@ -277,7 +315,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // PSU
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'p::s::u')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'p::s::u')) {
                     $hardwareItems[] = NavigationItem::make('PSU')
                         ->icon('heroicon-o-cube')
                         ->url(\App\Filament\Resources\PSUResource::getUrl())
@@ -285,7 +323,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Keyboard
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'keyboard')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'keyboard')) {
                     $hardwareItems[] = NavigationItem::make('Keyboard')
                         ->icon('heroicon-o-command-line')
                         ->url(\App\Filament\Resources\KeyboardResource::getUrl())
@@ -293,7 +331,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Mouse
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'mouse')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'mouse')) {
                     $hardwareItems[] = NavigationItem::make('Mouse')
                         ->icon('heroicon-o-cursor-arrow-rays')
                         ->url(\App\Filament\Resources\MouseResource::getUrl())
@@ -301,7 +339,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Monitor
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'monitor')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'monitor')) {
                     $hardwareItems[] = NavigationItem::make('Monitor')
                         ->icon('heroicon-o-tv')
                         ->url(\App\Filament\Resources\MonitorResource::getUrl())
@@ -309,7 +347,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Headphone
-                if ($user->hasRole('super_admin') || $user->hasRole('laboran') || $user->can('view-navigation-item', 'headphone')) {
+                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'headphone')) {
                     $hardwareItems[] = NavigationItem::make('Headphone')
                         ->icon('heroicon-o-speaker-wave')
                         ->url(\App\Filament\Resources\HeadphoneResource::getUrl())
@@ -322,49 +360,7 @@ class AdminPanelProvider extends PanelProvider
                         ->items($hardwareItems);
                 }
 
-                // NAVIGASI LABORATORIUM
-                // Ambil semua lab dari database untuk membuat navigasi dinamis
-                $laboratories = Laboratorium::query()->orderBy('ruang')->get();
 
-                foreach ($laboratories as $lab) {
-                    // Gunakan hasLabPermission dari trait untuk pengecekan izin yang lebih akurat
-                    if ($user->hasLabPermission($lab->id, 'view')) {
-                        $labItems = [];
-
-                        // Inventaris PC
-                        $labItems[] = NavigationItem::make('Inventaris PC')
-                            ->icon('heroicon-o-computer-desktop')
-                            ->url(fn() => PCInventoryResource::getUrl('index', ['tableFilters[laboratorium][value]' => $lab->id]))
-                            ->isActiveWhen(fn() => request()->routeIs(PCInventoryResource::getRouteBaseName() . '.index') && request()->input('tableFilters.laboratorium.value') == $lab->id);
-
-                        // Inventaris Non-PC
-                        $labItems[] = NavigationItem::make('Inventaris Non-PC')
-                            ->icon('heroicon-o-cpu-chip')
-                            ->url(fn() => NonPCInventoryResource::getUrl('index', ['tableFilters[laboratorium][value]' => $lab->id]))
-                            ->isActiveWhen(fn() => request()->routeIs(NonPCInventoryResource::getRouteBaseName() . '.index') && request()->input('tableFilters.laboratorium.value') == $lab->id);
-
-                        // Inventaris Software
-                        $labItems[] = NavigationItem::make('Inventaris Software')
-                            ->icon('heroicon-o-code-bracket-square')
-                            ->url(fn() => SoftwareInventoryResource::getUrl('index', ['tableFilters[laboratorium][value]' => $lab->id]))
-                            ->isActiveWhen(fn() => request()->routeIs(SoftwareInventoryResource::getRouteBaseName() . '.index') && request()->input('tableFilters.laboratorium.value') == $lab->id);
-
-                        // Barang Masuk
-                        $labItems[] = NavigationItem::make('Barang Masuk')
-                            ->icon('heroicon-o-arrow-down-tray')
-                            ->url(fn() => BarangMasukResource::getUrl('index', ['tableFilters[laboratorium][value]' => $lab->id]))
-                            ->isActiveWhen(fn() => request()->routeIs(BarangMasukResource::getRouteBaseName() . '.index') && request()->input('tableFilters.laboratorium.value') == $lab->id);
-
-                        // Barang Keluar
-                        $labItems[] = NavigationItem::make('Barang Keluar')
-                            ->icon('heroicon-o-arrow-up-tray')
-                            ->url(fn() => BarangKeluarResource::getUrl('index', ['tableFilters[laboratorium][value]' => $lab->id]))
-                            ->isActiveWhen(fn() => request()->routeIs(BarangKeluarResource::getRouteBaseName() . '.index') && request()->input('tableFilters.laboratorium.value') == $lab->id);
-
-                        $navigationGroups[] = NavigationGroup::make($lab->ruang)
-                            ->items($labItems);
-                    }
-                }
 
                 return $builder->groups($navigationGroups);
             });

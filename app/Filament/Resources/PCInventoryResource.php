@@ -29,6 +29,26 @@ class PCInventoryResource extends Resource
 {
     protected static ?string $model = Inventory::class;
 
+    public static function canCreate(): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
+    public static function canEdit(Model $record): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
+    public static function canDelete(Model $record): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
+    public static function canDeleteAny(): bool
+    {
+        return !auth()->user()->hasRole('super_admin');
+    }
+
     protected static ?string $modelLabel = 'Inventaris PC';
     protected static ?string $pluralModelLabel = 'Inventaris PC';
     protected static ?string $navigationIcon = 'heroicon-o-computer-desktop';

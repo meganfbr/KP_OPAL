@@ -4,9 +4,13 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Spatie\Activitylog\Traits\LogsActivity;
+use Spatie\Activitylog\LogOptions;
 
 class RekapInventarisPc extends Model
 {
+    use LogsActivity;
+
     protected $table = 'rekap_inventaris_pcs';
 
     protected $fillable = [
@@ -16,6 +20,15 @@ class RekapInventarisPc extends Model
         'lokasi',
         'kondisi',
     ];
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['no_pc', 'lokasi', 'kondisi', 'rekap_inventaris_spec_id'])
+            ->logOnlyDirty()
+            ->setDescriptionForEvent(fn(string $eventName) => "Rekap PC telah di-{$eventName}")
+            ->useLogName('rekap-inventaris');
+    }
 
     public function periode(): BelongsTo
     {
