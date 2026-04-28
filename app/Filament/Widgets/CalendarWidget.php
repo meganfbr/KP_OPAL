@@ -10,8 +10,8 @@ class CalendarWidget extends Widget
     // Set urutan widget (semakin besar angka, semakin rendah posisi)
     protected static ?int $sort = 2;
 
-    // Widget akan menggunakan lebar penuh
-    protected int | string | array $columnSpan = 'full';
+    // Widget akan menggunakan setengah lebar (1 kolom dari default 2 kolom)
+    protected int | string | array $columnSpan = 1;
 
     protected static string $view = 'filament.widgets.calendar-widget';
 

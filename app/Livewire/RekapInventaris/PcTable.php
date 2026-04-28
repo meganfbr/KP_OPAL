@@ -146,12 +146,79 @@ class PcTable extends Component implements HasForms, HasTable
 
                 TextColumn::make('kondisi')
                     ->label('Kondisi')
-                    ->badge(),
+                    ->badge()
+                    ->color(fn (string $state): string => match ($state) {
+                        'Baik' => 'success',
+                        'Rusak', 'Rusak Berat' => 'danger',
+                        'Kurang Baik', 'Rusak Ringan' => 'warning',
+                        'Dalam Perbaikan' => 'info',
+                        default => 'gray',
+                    })
+                    ->icon(fn (string $state): ?string => $state !== 'Baik' ? 'heroicon-m-exclamation-circle' : null)
+                    ->action(
+                        Tables\Actions\Action::make('lihatDetailKerusakan')
+                            ->modalHeading(fn (RekapInventarisPc $record) => 'Detail Masalah - ' . $record->no_pc)
+                            ->modalWidth('4xl')
+                            ->modalSubmitAction(false) // Hide submit button, it's just for viewing
+                            ->modalCancelActionLabel('Tutup')
+                            ->infolist(fn (RekapInventarisPc $record) => [
+                                \Filament\Infolists\Components\Section::make('Daftar Kerusakan Komponen')
+                                    ->description('Hanya menampilkan komponen yang bermasalah (Rusak / Kurang Baik).')
+                                    ->schema(function() use ($record) {
+                                        $issues = collect($record->spec?->details ?? [])
+                                            ->filter(fn($detail) => $detail->kondisi !== 'Baik');
+                                        
+                                        if ($issues->isEmpty()) {
+                                            return [\Filament\Infolists\Components\TextEntry::make('no_issues')
+                                                ->label('')
+                                                ->state('Semua komponen dalam kondisi baik.')];
+                                        }
+
+                                        return $issues->map(function ($detail) {
+                                            return \Filament\Infolists\Components\Grid::make(3)->schema([
+                                                \Filament\Infolists\Components\TextEntry::make('comp_' . $detail->id)
+                                                    ->label('Komponen')
+                                                    ->state($detail->komponen)
+                                                    ->weight(\Filament\Support\Enums\FontWeight::Bold),
+                                                
+                                                \Filament\Infolists\Components\TextEntry::make('cond_' . $detail->id)
+                                                    ->label('Kondisi')
+                                                    ->state($detail->kondisi)
+                                                    ->badge()
+                                                    ->color(fn($state) => match($state) {
+                                                        'Rusak' => 'danger',
+                                                        'Kurang Baik' => 'warning',
+                                                        default => 'gray'
+                                                    }),
+                                                
+                                                \Filament\Infolists\Components\TextEntry::make('note_' . $detail->id)
+                                                    ->label('Keterangan')
+                                                    ->state($detail->catatan_kondisi ?: '-'),
+                                            ]);
+                                        })->toArray();
+                                    }),
+                            ])
+                    ),
+
+                TextColumn::make('spec_details_issues')
+                    ->label('Masalah Komponen')
+                    ->state(function (RekapInventarisPc $record) {
+                        return collect($record->spec?->details ?? [])
+                            ->filter(fn($detail) => !in_array($detail->kondisi, ['Baik', null, '']))
+                            ->map(fn($detail) => "{$detail->komponen}: {$detail->kondisi}");
+                    })
+                    ->listWithLineBreaks()
+                    ->bulleted()
+                    ->placeholder('Tidak ada (Semua Baik)')
+                    ->color('danger')
+                    ->extraAttributes(['class' => 'text-xs']),
             ])
             ->actions([
+
                 Tables\Actions\Action::make('copyPrev')
-                    ->label('Copy ke Baris Sebelumnya')
-                    ->icon('heroicon-o-arrow-up')
+                    ->hiddenLabel()
+                    ->icon('img-copy-atas')
+                    ->iconSize(\Filament\Support\Enums\IconSize::Large)
                     ->visible(!auth()->user()->hasRole('super_admin'))
                     ->color('info')
                     ->requiresConfirmation()
@@ -165,7 +232,7 @@ class PcTable extends Component implements HasForms, HasTable
                         if ($prevNumber <= 0) {
                             Notification::make()
                                 ->title('Gagal')
-                                ->body('Tidak bisa copy ke bawah B01.')
+                                ->body('Tidak bisa copy ke bawah ' . $this->formatNoPc(1) . '.')
                                 ->danger()
                                 ->send();
                             return;
@@ -206,8 +273,9 @@ class PcTable extends Component implements HasForms, HasTable
                     }),
 
                 Tables\Actions\Action::make('copyNext')
-                    ->label('Copy ke Baris Berikutnya')
-                    ->icon('heroicon-o-arrow-down')
+                    ->hiddenLabel()
+                    ->icon('img-copy-bawah')
+                    ->iconSize(\Filament\Support\Enums\IconSize::Large)
                     ->visible(!auth()->user()->hasRole('super_admin'))
                     ->color('warning')
                     ->requiresConfirmation()
@@ -335,6 +403,127 @@ class PcTable extends Component implements HasForms, HasTable
                         $service->syncPeriodSpecOrder($periodeId);
                     }),
             ])
+            ->bulkActions([
+                Tables\Actions\BulkActionGroup::make([
+                    Tables\Actions\BulkAction::make('laporkanPerbaikan')
+                        ->label('Laporkan Perbaikan')
+                        ->icon('heroicon-o-megaphone')
+                        ->color('danger')
+                        ->visible(!auth()->user()->hasRole('super_admin'))
+                        ->modalHeading('Konfirmasi Laporan Perbaikan')
+                        ->modalDescription(fn (\Illuminate\Database\Eloquent\Collection $records) => new \Illuminate\Support\HtmlString('Anda akan melaporkan PC berikut: <strong>' . $records->pluck('no_pc')->join(', ') . '</strong>. Apakah Anda yakin ingin melanjutkan?\\nLaporan PDF PTPP akan diunduh setelah konfirmasi.'))
+                        ->modalSubmitActionLabel('Kirim & Unduh Laporan')
+                        ->modalCancelActionLabel('Batal')
+                        ->form([
+                            \Filament\Forms\Components\TextInput::make('ketidaksesuaian')
+                                ->label('Bentuk Ketidaksesuaian')
+                                ->default('Kerusakan Hardware/Software Inventaris')
+                                ->required(),
+                            \Filament\Forms\Components\TextInput::make('tanggal_kejadian')
+                                ->label('Tanggal & Waktu Kejadian')
+                                ->placeholder('Contoh: 2 April 2024 Jam: 07.00 - 09.00')
+                                ->required(),
+                            \Filament\Forms\Components\Textarea::make('tindakan_langsung')
+                                ->label('Tindakan Langsung')
+                                ->default('Melaporkan kerusakan inventaris ke Super Admin.')
+                                ->required(),
+                        ])
+                        ->action(function (\Illuminate\Database\Eloquent\Collection $records, array $data) {
+                            $count = 0;
+                            $problematic_pcs = [];
+                            $summary_counts = [];
+                            $labName = 'Semua Laboratorium';
+
+                            foreach ($records as $record) {
+                                if ($record->kondisi === 'Baik') {
+                                    $hasIssue = collect($record->spec?->details ?? [])
+                                        ->contains(fn($detail) => !empty($detail->kondisi) && $detail->kondisi !== 'Baik');
+                                    if (!$hasIssue) {
+                                        continue; 
+                                    }
+                                }
+
+                                $labId = $this->laboratoriumId ?? $record->periode->laboratorium_id;
+                                $labName = \App\Models\Laboratorium::find($labId)?->ruang ?? 'Unknown';
+
+                                $komponenRusak = [];
+                                $broken_components_list = [];
+
+                                foreach ($record->spec?->details ?? [] as $detail) {
+                                    if (!empty($detail->kondisi) && $detail->kondisi !== 'Baik') {
+                                        $komponenRusak[] = [
+                                            'komponen' => $detail->komponen,
+                                            'kondisi' => $detail->kondisi,
+                                            'keterangan' => $detail->catatan_kondisi,
+                                        ];
+                                        
+                                        $broken_components_list[] = $detail->komponen . ' (' . strtolower($detail->kondisi) . ')';
+                                        
+                                        $komp_name = $detail->komponen;
+                                        if (!isset($summary_counts[$komp_name])) {
+                                            $summary_counts[$komp_name] = 0;
+                                        }
+                                        $summary_counts[$komp_name]++;
+                                    }
+                                }
+
+                                \App\Models\LaporanPerbaikan::create([
+                                    'rekap_inventaris_pc_id' => $record->id,
+                                    'laboratorium_id' => $labId,
+                                    'no_pc' => $record->no_pc,
+                                    'ruang_lab' => $labName,
+                                    'prioritas' => 'Sedang',
+                                    'komponen_rusak' => $komponenRusak,
+                                    'keterangan' => $data['tindakan_langsung'],
+                                    'status' => 'Pending',
+                                    'tanggal_pengajuan' => now()->toDateString(),
+                                    'user_id' => auth()->id(),
+                                ]);
+                                
+                                if (count($broken_components_list) > 0) {
+                                    $problematic_pcs[] = "- PC " . $record->no_pc . ": " . implode(', ', $broken_components_list);
+                                }
+                                $count++;
+                            }
+
+                            if ($count === 0) {
+                                \Filament\Notifications\Notification::make()
+                                    ->title("Tidak ada PC bermasalah yang dapat dilaporkan")
+                                    ->warning()
+                                    ->send();
+                                return;
+                            }
+
+                            $uraian = implode("\\n", $problematic_pcs);
+                            $perbaikan_list = [];
+                            foreach ($summary_counts as $komp => $qty) {
+                                $perbaikan_list[] = "- Penggantian $komp ($qty unit)";
+                            }
+                            $tindakan_perbaikan = implode("\\n", $perbaikan_list);
+
+                            $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.laporan-pengajuan', [
+                                'nomor' => 'F.LAB.KOM-UDINUS-SH-03-02',
+                                'revisi' => '0',
+                                'tanggal_berlaku' => '19 September 2022',
+                                'ketidaksesuaian' => $data['ketidaksesuaian'],
+                                'lab' => $labName,
+                                'tanggal' => $data['tanggal_kejadian'],
+                                'uraian' => $uraian,
+                                'tindakan_langsung' => $data['tindakan_langsung'],
+                                'tindakan_perbaikan' => $tindakan_perbaikan,
+                                'pelapor' => auth()->user()->name,
+                                'jabatan_pelapor' => 'Laboran',
+                                'admin' => '............................',
+                                'jabatan_admin' => 'Super Admin',
+                            ])->setPaper('a4', 'portrait');
+
+                            $filename = "PTPP_" . str_replace(' ', '_', $labName) . "_" . date('Ymd_Hi') . ".pdf";
+
+                            return response()->streamDownload(fn () => print($pdf->output()), $filename);
+                        })
+                        ->deselectRecordsAfterCompletion(),
+                ]),
+            ])
             ->defaultPaginationPageOption(10)
             ->paginated([10, 25, 50]);
     }
@@ -377,54 +566,61 @@ class PcTable extends Component implements HasForms, HasTable
 
     protected function getSpecDetailFormSchema(): array
     {
-        $components = [
-            1 => 'Motherboard',
-            2 => 'Processor',
-            3 => 'Hardisk',
-            4 => 'VGA',
-            5 => 'RAM',
-            6 => 'DVD',
-            7 => 'Keyboard',
-            8 => 'Mouse',
-            9 => 'Monitor',
+        // Map komponen to: [index, model class, label for field]
+        $componentConfig = [
+            1 => ['label' => 'Motherboard', 'model' => \App\Models\Motherboard::class],
+            2 => ['label' => 'Processor',   'model' => \App\Models\Processor::class],
+            3 => ['label' => 'Hardisk',     'model' => \App\Models\Penyimpanan::class],
+            4 => ['label' => 'VGA',         'model' => \App\Models\VGA::class],
+            5 => ['label' => 'RAM',         'model' => \App\Models\RAM::class],
+            6 => ['label' => 'DVD',         'model' => \App\Models\DVD::class],
+            7 => ['label' => 'Keyboard',    'model' => \App\Models\Keyboard::class],
+            8 => ['label' => 'Mouse',       'model' => \App\Models\Mouse::class],
+            9 => ['label' => 'Monitor',     'model' => \App\Models\Monitor::class],
         ];
 
         $schema = [];
 
-        foreach ($components as $index => $label) {
+        foreach ($componentConfig as $index => $config) {
+            $label = $config['label'];
+            $modelClass = $config['model'];
+
+            // Build dropdown options: key = full_name string, value = full_name string
+            // This keeps the 'detail' column as a string in the database (no extra FK needed)
+            $options = $modelClass::all()->mapWithKeys(function ($item) {
+                return [$item->full_name => $item->full_name];
+            })->toArray();
+
             $schema[] = Section::make($label)
                 ->schema([
                     Grid::make(3)->schema([
-                        TextInput::make("spec_details.$index.detail")
-                            ->label('Detail'),
+                        Select::make("spec_details.$index.detail")
+                            ->label('Tipe')
+                            ->options($options)
+                            ->searchable()
+                            ->nullable()
+                            ->placeholder('Pilih tipe ' . $label),
 
                         Select::make("spec_details.$index.kondisi")
                             ->label('Kondisi')
                             ->options([
-                                'Baik' => 'Baik',
+                                'Baik'       => 'Baik',
                                 'Kurang Baik' => 'Kurang Baik',
-                                'Rusak' => 'Rusak',
+                                'Rusak'      => 'Rusak',
                             ])
                             ->placeholder('-')
-                            ->nullable(),
+                            ->nullable()
+                            ->live(),
 
-                        Textarea::make("spec_details.$index.catatan_kondisi")
-                            ->label('Keterangan')
-                            ->rows(2)
-                            ->visible(fn (Get $get) => in_array(
-                                $get("spec_details.$index.kondisi"),
-                                ['Kurang Baik', 'Rusak']
-                            ))
-                            ->dehydrated(fn (Get $get) => in_array(
-                                $get("spec_details.$index.kondisi"),
-                                ['Kurang Baik', 'Rusak']
-                            )),
+                        TextInput::make("spec_details.$index.catatan_kondisi")
+                            ->label('Keterangan'),
                     ]),
                 ]);
         }
 
         return $schema;
     }
+
 
     protected function generateNextNoPc(): string
     {
@@ -458,7 +654,22 @@ class PcTable extends Component implements HasForms, HasTable
 
     protected function formatNoPc(int $number): string
     {
-        return 'B' . str_pad((string) $number, 2, '0', STR_PAD_LEFT);
+        $prefix = 'B';
+        
+        if ($this->laboratoriumId) {
+            $lab = \App\Models\Laboratorium::find($this->laboratoriumId);
+            if ($lab) {
+                $prefix = substr($lab->ruang, -1);
+            }
+        } else {
+            // Fallback: try to get from period
+            $periode = \App\Models\RekapInventarisPeriode::with('laboratorium')->find($this->periodeId);
+            if ($periode && $periode->laboratorium) {
+                $prefix = substr($periode->laboratorium->ruang, -1);
+            }
+        }
+
+        return $prefix . str_pad((string) $number, 2, '0', STR_PAD_LEFT);
     }
 
     protected function updateSpecDetails(RekapInventarisPc $record, array $details): void

@@ -31,22 +31,22 @@ class PCInventoryResource extends Resource
 
     public static function canCreate(): bool
     {
-        return !auth()->user()->hasRole('super_admin');
+        return auth()->user()->hasRole('super_admin');
     }
 
     public static function canEdit(Model $record): bool
     {
-        return !auth()->user()->hasRole('super_admin');
+        return auth()->user()->hasRole('super_admin');
     }
 
     public static function canDelete(Model $record): bool
     {
-        return !auth()->user()->hasRole('super_admin');
+        return auth()->user()->hasRole('super_admin');
     }
 
     public static function canDeleteAny(): bool
     {
-        return !auth()->user()->hasRole('super_admin');
+        return auth()->user()->hasRole('super_admin');
     }
 
     protected static ?string $modelLabel = 'Inventaris PC';

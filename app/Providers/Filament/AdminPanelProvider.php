@@ -215,23 +215,25 @@ class AdminPanelProvider extends PanelProvider
                         ->url(fn() => \App\Filament\Pages\RekapInventaris::getUrl())
                         ->isActiveWhen(fn() => request()->routeIs('filament.admin.pages.rekap-inventaris'));
 
-                    // Inventaris PC
-                    $masterDataItems[] = NavigationItem::make('Inventaris PC')
-                        ->icon('heroicon-o-computer-desktop')
-                        ->url(fn() => PCInventoryResource::getUrl('index'))
-                        ->isActiveWhen(fn() => request()->routeIs(PCInventoryResource::getRouteBaseName() . '.*'));
+                    // Inventaris PC (Superadmin Only)
+                    if ($user->hasRole('super_admin')) {
+                        $masterDataItems[] = NavigationItem::make('Inventaris PC')
+                            ->icon('heroicon-o-computer-desktop')
+                            ->url(fn() => PCInventoryResource::getUrl('index'))
+                            ->isActiveWhen(fn() => request()->routeIs(PCInventoryResource::getRouteBaseName() . '.*'));
 
-                    // Inventaris Non-PC
-                    $masterDataItems[] = NavigationItem::make('Inventaris Non-PC')
-                        ->icon('heroicon-o-cpu-chip')
-                        ->url(fn() => NonPCInventoryResource::getUrl('index'))
-                        ->isActiveWhen(fn() => request()->routeIs(NonPCInventoryResource::getRouteBaseName() . '.*'));
+                        // Inventaris Non-PC
+                        $masterDataItems[] = NavigationItem::make('Inventaris Non-PC')
+                            ->icon('heroicon-o-cpu-chip')
+                            ->url(fn() => NonPCInventoryResource::getUrl('index'))
+                            ->isActiveWhen(fn() => request()->routeIs(NonPCInventoryResource::getRouteBaseName() . '.*'));
 
-                    // Inventaris Software
-                    $masterDataItems[] = NavigationItem::make('Inventaris Software')
-                        ->icon('heroicon-o-code-bracket-square')
-                        ->url(fn() => SoftwareInventoryResource::getUrl('index'))
-                        ->isActiveWhen(fn() => request()->routeIs(SoftwareInventoryResource::getRouteBaseName() . '.*'));
+                        // Inventaris Software
+                        $masterDataItems[] = NavigationItem::make('Inventaris Software')
+                            ->icon('heroicon-o-code-bracket-square')
+                            ->url(fn() => SoftwareInventoryResource::getUrl('index'))
+                            ->isActiveWhen(fn() => request()->routeIs(SoftwareInventoryResource::getRouteBaseName() . '.*'));
+                    }
 
                     // Barang Masuk
                     $masterDataItems[] = NavigationItem::make('Barang Masuk')

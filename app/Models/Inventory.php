@@ -10,10 +10,13 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
+use App\Traits\HasActivityLog;
 
 class Inventory extends Model
 {
-    use HasFactory, LogsActivity;
+    use HasFactory, LogsActivity, HasActivityLog;
+
+    protected $activityModul = 'Inventaris';
 
     protected $guarded = ['id'];
 

@@ -7,9 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
+use App\Traits\HasActivityLog;
+
 class SoftwareDetail extends Model
 {
-    use HasFactory;
+    use HasFactory, HasActivityLog;
+
+    protected $activityModul = 'Software';
 
     protected $table = 'software_details';
     protected $fillable = [

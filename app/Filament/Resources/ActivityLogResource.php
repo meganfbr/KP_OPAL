@@ -3,55 +3,61 @@
 namespace App\Filament\Resources;
 
 use App\Filament\Resources\ActivityLogResource\Pages;
+use App\Models\ActivityLog;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Filters\Filter;
+use Filament\Forms\Components\DatePicker;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Model;
-use Spatie\Activitylog\Models\Activity;
+use Illuminate\Support\Facades\Auth;
 
 class ActivityLogResource extends Resource
 {
-    protected static ?string $model = Activity::class;
+    protected static ?string $model = ActivityLog::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-clipboard-document-list';
 
-    protected static ?string $slug = 'activity-log';
-
-    protected static ?string $navigationLabel = 'Log Aktivitas';
-
-    protected static ?string $modelLabel = 'Log Aktivitas';
-
-    protected static ?string $pluralModelLabel = 'Log Aktivitas';
-
     protected static ?string $navigationGroup = 'Monitoring';
 
-    protected static ?int $navigationSort = 99;
+    protected static ?int $navigationSort = 100;
+
+    public static function getNavigationLabel(): string
+    {
+        $user = Auth::user();
+        if ($user && $user->hasRole('super_admin')) {
+            return 'Aktivitas Sistem';
+        }
+        return 'Aktivitas Saya';
+    }
+
+    public static function getPluralModelLabel(): string
+    {
+        return static::getNavigationLabel();
+    }
+
+    public static function getModelLabel(): string
+    {
+        return 'Log Aktivitas';
+    }
 
     /**
-     * Hanya super_admin yang bisa mengakses log aktivitas
+     * Scope the query based on user role.
      */
-    public static function canAccess(): bool
+    public static function getEloquentQuery(): Builder
     {
-        return auth()->user()->hasRole('super_admin');
-    }
+        $query = parent::getEloquentQuery();
+        $user = Auth::user();
 
-    public static function canCreate(): bool
-    {
-        return false;
-    }
+        if ($user && !$user->hasRole('super_admin')) {
+            // Laboran only see their own logs
+            return $query->where('user_id', $user->id);
+        }
 
-    public static function canEdit(Model $record): bool
-    {
-        return false;
-    }
-
-    public static function canDelete(Model $record): bool
-    {
-        return false;
+        return $query;
     }
 
     public static function form(Form $form): Form
@@ -61,6 +67,9 @@ class ActivityLogResource extends Resource
 
     public static function table(Table $table): Table
     {
+        $user = Auth::user();
+        $isSuperAdmin = $user && $user->hasRole('super_admin');
+
         return $table
             ->defaultSort('created_at', 'desc')
             ->columns([
@@ -69,121 +78,86 @@ class ActivityLogResource extends Resource
                     ->dateTime('d M Y, H:i:s')
                     ->sortable(),
 
-                TextColumn::make('causer.name')
-                    ->label('Aktor (User)')
+                TextColumn::make('user.name')
+                    ->label('User')
                     ->searchable()
+                    ->hidden(!$isSuperAdmin),
+
+                TextColumn::make('laboratorium.ruang')
+                    ->label('Lab')
+                    ->badge()
+                    ->color('info')
                     ->default('-')
-                    ->badge()
-                    ->color('primary'),
+                    ->hidden(!$isSuperAdmin),
 
-                TextColumn::make('causer.roles.name')
-                    ->label('Role')
-                    ->badge()
-                    ->color('warning')
-                    ->default('-'),
-
-                TextColumn::make('event')
+                TextColumn::make('aksi')
                     ->label('Aksi')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
-                        'created' => 'success',
-                        'updated' => 'info',
-                        'deleted' => 'danger',
+                        'CREATE' => 'success',
+                        'UPDATE' => 'warning',
+                        'DELETE' => 'danger',
+                        'LOGIN' => 'info',
+                        'LOGOUT' => 'gray',
                         default => 'gray',
-                    })
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'created' => 'Tambah',
-                        'updated' => 'Edit',
-                        'deleted' => 'Hapus',
-                        default => ucfirst($state),
                     }),
 
-                TextColumn::make('log_name')
-                    ->label('Kategori')
+                TextColumn::make('modul')
+                    ->label('Modul')
                     ->badge()
-                    ->color('gray')
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
-                        'user' => 'User',
-                        'inventaris' => 'Inventaris',
-                        'rekap-inventaris' => 'Rekap Inventaris',
-                        'hardware' => 'Hardware',
-                        'monitor' => 'Monitor',
-                        'jadwal' => 'Jadwal',
-                        default => ucfirst($state),
-                    }),
+                    ->color('primary'),
 
-                TextColumn::make('subject_type')
-                    ->label('Data (Model)')
-                    ->formatStateUsing(fn (?string $state): string => $state ? class_basename($state) : '-')
-                    ->toggleable(),
-
-                TextColumn::make('description')
+                TextColumn::make('deskripsi')
                     ->label('Deskripsi')
-                    ->limit(50)
-                    ->tooltip(fn ($record) => $record->description)
-                    ->toggleable(),
-
-                TextColumn::make('properties')
-                    ->label('Detail Perubahan')
-                    ->formatStateUsing(function ($state) {
-                        if (empty($state)) return '-';
-
-                        $props = is_string($state) ? json_decode($state, true) : (array) $state;
-                        $parts = [];
-
-                        if (isset($props['old']) && isset($props['attributes'])) {
-                            foreach ($props['attributes'] as $key => $newVal) {
-                                $oldVal = $props['old'][$key] ?? '-';
-                                $parts[] = "{$key}: {$oldVal} → {$newVal}";
-                            }
-                        } elseif (isset($props['attributes'])) {
-                            foreach ($props['attributes'] as $key => $val) {
-                                $parts[] = "{$key}: {$val}";
-                            }
-                        }
-
-                        return implode(', ', array_slice($parts, 0, 3)) . (count($parts) > 3 ? '...' : '');
-                    })
-                    ->limit(60)
-                    ->tooltip(function ($record) {
-                        $props = $record->properties->toArray();
-                        if (empty($props)) return null;
-                        return json_encode($props, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE);
-                    })
-                    ->toggleable(isToggledHiddenByDefault: true),
+                    ->searchable()
+                    ->wrap(),
             ])
             ->filters([
-                SelectFilter::make('event')
-                    ->label('Aksi')
-                    ->options([
-                        'created' => 'Tambah',
-                        'updated' => 'Edit',
-                        'deleted' => 'Hapus',
-                    ]),
-
-                SelectFilter::make('log_name')
-                    ->label('Kategori')
-                    ->options([
-                        'user' => 'User',
-                        'inventaris' => 'Inventaris',
-                        'rekap-inventaris' => 'Rekap Inventaris',
-                        'hardware' => 'Hardware',
-                        'monitor' => 'Monitor',
-                    ]),
-
-                SelectFilter::make('causer_id')
+                // Only Super Admin gets these filters
+                SelectFilter::make('user_id')
                     ->label('User')
-                    ->relationship('causer', 'name')
+                    ->relationship('user', 'name')
                     ->searchable()
-                    ->preload(),
+                    ->preload()
+                    ->visible($isSuperAdmin),
+
+                SelectFilter::make('lab_id')
+                    ->label('Laboratorium')
+                    ->relationship('laboratorium', 'ruang')
+                    ->visible($isSuperAdmin),
+
+                SelectFilter::make('aksi')
+                    ->options([
+                        'CREATE' => 'CREATE',
+                        'UPDATE' => 'UPDATE',
+                        'DELETE' => 'DELETE',
+                        'LOGIN' => 'LOGIN',
+                        'LOGOUT' => 'LOGOUT',
+                    ])
+                    ->visible($isSuperAdmin),
+
+                Filter::make('created_at')
+                    ->form([
+                        DatePicker::make('from')->label('Dari Tanggal'),
+                        DatePicker::make('until')->label('Sampai Tanggal'),
+                    ])
+                    ->query(function (Builder $query, array $data): Builder {
+                        return $query
+                            ->when(
+                                $data['from'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('created_at', '>=', $date),
+                            )
+                            ->when(
+                                $data['until'],
+                                fn (Builder $query, $date): Builder => $query->whereDate('created_at', '<=', $date),
+                            );
+                    })
+                    ->visible($isSuperAdmin),
             ])
             ->actions([
-                Tables\Actions\ViewAction::make()
-                    ->modalHeading('Detail Log Aktivitas')
-                    ->modalContent(fn (Activity $record) => view('filament.resources.activity-log-detail', ['record' => $record])),
+                Tables\Actions\ViewAction::make(),
             ])
-            ->bulkActions([])
-            ->poll('30s');
+            ->bulkActions([]);
     }
 
     public static function getRelations(): array

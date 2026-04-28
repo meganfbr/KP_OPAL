@@ -113,6 +113,11 @@ class AuthServiceProvider extends ServiceProvider
                 return true;
             }
 
+            // Izinkan semua pengguna (termasuk Laboran) untuk melihat widget umum
+            if (in_array($widgetName, ['WelcomeWidget', 'CalendarWidget', 'KalenderAkademikWidget'])) {
+                return true;
+            }
+
             $permissionName = "widget_{$widgetName}";
 
             // Periksa izin widget

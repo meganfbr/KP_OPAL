@@ -11,6 +11,7 @@ use App\Models\RekapInventarisPc;
 use App\Models\RekapInventarisSpec;
 use App\Models\RekapInventarisPeriode;
 use App\Models\RekapInventarisSpecDetail;
+use App\Models\RekapInventarisNonPc;
 use App\Models\Laboratorium;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Concerns\InteractsWithForms;
@@ -21,6 +22,7 @@ use Filament\Forms\Form;
 use Maatwebsite\Excel\Facades\Excel;
 use App\Exports\RekapInventarisExport;
 use Barryvdh\DomPDF\Facade\Pdf;
+use App\Filament\Resources\LaporanPerbaikanResource;
 
 class RekapInventaris extends Page implements HasForms, HasActions
 {
@@ -40,6 +42,11 @@ class RekapInventaris extends Page implements HasForms, HasActions
     public ?string $laboratoriumNama = null;
 
     public ?array $data = [];
+    
+    public function getMaxContentWidth(): string
+    {
+        return 'full';
+    }
 
     public function mount(): void
     {
@@ -184,6 +191,28 @@ class RekapInventaris extends Page implements HasForms, HasActions
             ->color('success')
             ->button(),
 
+            Action::make('ajukanLaporanPdf')
+                ->label('Ajukan Laporan')
+                ->icon('heroicon-o-document-plus')
+                ->color('info')
+                ->visible(false)
+                ->form([
+                    \Filament\Forms\Components\Textarea::make('catatan')
+                        ->label('Catatan Tambahan')
+                        ->placeholder('Masukkan catatan jika ada...')
+                        ->rows(3),
+                ])
+                ->action(function (array $data) {
+                    return $this->generateLaporanPdf($data['catatan'] ?? null);
+                }),
+
+            Action::make('goToLaporan')
+                ->label('Laporan Pengajuan')
+                ->icon('heroicon-o-wrench-screwdriver')
+                ->url(LaporanPerbaikanResource::getUrl())
+                ->color('primary')
+                ->visible(fn() => auth()->user()->hasRole('super_admin')),
+
             Action::make('copyBulanSebelumnya')
                 ->label('Copy Bulan Lalu')
                 ->icon('heroicon-o-document-duplicate')
@@ -228,13 +257,84 @@ class RekapInventaris extends Page implements HasForms, HasActions
             ->orderByRaw('CAST(SUBSTRING(no_pc, 2) AS UNSIGNED)')
             ->get();
 
+        $nonpcs = RekapInventarisNonPc::where('rekap_inventaris_periode_id', $this->periodeId)
+            ->orderBy('nama_barang')
+            ->get();
+
         $pdf = Pdf::loadView('pdf.rekap-inventaris', [
             'periode' => $periode,
             'pcs' => $pcs,
-            'title' => 'Rekap Inventaris PC - ' . $periode->laboratorium?->ruang
+            'nonpcs' => $nonpcs,
+            'title' => 'Rekap Inventaris - ' . $periode->laboratorium?->ruang
         ])->setPaper('a4', 'landscape');
 
         return response()->streamDownload(fn () => print($pdf->output()), "Rekap_{$periode->nama_periode}_{$periode->laboratorium?->ruang}.pdf");
+    }
+
+    public function generateLaporanPdf(?string $catatan)
+    {
+        $periode = RekapInventarisPeriode::with('laboratorium')->findOrFail($this->periodeId);
+        $pcs = RekapInventarisPc::where('rekap_inventaris_periode_id', $this->periodeId)
+            ->with(['spec.details'])
+            ->orderByRaw('CAST(SUBSTRING(no_pc, 2) AS UNSIGNED)')
+            ->get();
+
+        $problematic_pcs = [];
+        $summary_counts = [];
+
+        foreach ($pcs as $pc) {
+            if (!$pc->spec || !$pc->spec->details) continue;
+
+            $broken_components = [];
+            foreach ($pc->spec->details as $detail) {
+                if (in_array(strtolower(trim($detail->kondisi)), ['rusak', 'kurang baik'])) {
+                    $broken_components[] = $detail->komponen . ' (' . strtolower($detail->kondisi) . ')';
+                    
+                    $komp_name = $detail->komponen;
+                    if (!isset($summary_counts[$komp_name])) {
+                        $summary_counts[$komp_name] = 0;
+                    }
+                    $summary_counts[$komp_name]++;
+                }
+            }
+
+            if (count($broken_components) > 0) {
+                $problematic_pcs[] = "- PC " . $pc->no_pc . ": " . implode(', ', $broken_components);
+            }
+        }
+
+        if (empty($problematic_pcs)) {
+            Notification::make()->title('Info')->body('Tidak ada PC dengan komponen rusak/kurang baik di periode ini.')->info()->send();
+            return;
+        }
+
+        $uraian = implode("\n", $problematic_pcs);
+        
+        $perbaikan_list = [];
+        foreach ($summary_counts as $komp => $qty) {
+            $perbaikan_list[] = "- Penggantian $komp ($qty unit)";
+        }
+        $tindakan_perbaikan = implode("\n", $perbaikan_list);
+
+        $pdf = Pdf::loadView('pdf.laporan-pengajuan', [
+            'nomor' => 'F.LAB.KOM-UDINUS-SH-03-02',
+            'revisi' => '0',
+            'tanggal_berlaku' => '19 September 2022',
+            'ketidaksesuaian' => 'Kerusakan Hardware/Software Inventaris',
+            'lab' => $periode->laboratorium?->ruang ?? 'Semua Laboratorium',
+            'tanggal' => date('d F Y'),
+            'uraian' => $uraian,
+            'tindakan_langsung' => $catatan ?: 'Melaporkan kerusakan inventaris ke Super Admin.',
+            'tindakan_perbaikan' => $tindakan_perbaikan,
+            'pelapor' => auth()->user()->name,
+            'jabatan_pelapor' => 'Laboran',
+            'admin' => '............................',
+            'jabatan_admin' => 'Super Admin',
+        ])->setPaper('a4', 'portrait');
+
+        $filename = "PTPP_" . str_replace(' ', '_', $periode->laboratorium?->ruang ?? 'Lab') . "_" . date('Ymd_Hi') . ".pdf";
+
+        return response()->streamDownload(fn () => print($pdf->output()), $filename);
     }
 
     public function downloadExcel()
@@ -281,7 +381,8 @@ class RekapInventaris extends Page implements HasForms, HasActions
     protected function isPeriodCompletelyEmpty(int $periodeId): bool
     {
         return RekapInventarisPc::where('rekap_inventaris_periode_id', $periodeId)->count() === 0
-            && RekapInventarisSpec::where('rekap_inventaris_periode_id', $periodeId)->count() === 0;
+            && RekapInventarisSpec::where('rekap_inventaris_periode_id', $periodeId)->count() === 0
+            && RekapInventarisNonPc::where('rekap_inventaris_periode_id', $periodeId)->count() === 0;
     }
 
     protected function copyAllDataFromPeriod(int $fromPeriodeId, int $toPeriodeId): void
@@ -319,6 +420,19 @@ class RekapInventaris extends Page implements HasForms, HasActions
                     'kondisi' => $oldPc->kondisi,
                 ]);
             }
+
+            // Copy Non-PC data
+            $oldNonPcs = RekapInventarisNonPc::where('rekap_inventaris_periode_id', $fromPeriodeId)->get();
+            foreach ($oldNonPcs as $oldNonPc) {
+                RekapInventarisNonPc::create([
+                    'rekap_inventaris_periode_id' => $toPeriodeId,
+                    'nama_barang' => $oldNonPc->nama_barang,
+                    'merk_model' => $oldNonPc->merk_model,
+                    'jumlah' => $oldNonPc->jumlah,
+                    'kondisi' => $oldNonPc->kondisi,
+                    'keterangan' => $oldNonPc->keterangan,
+                ]);
+            }
         });
     }
 
@@ -327,6 +441,7 @@ class RekapInventaris extends Page implements HasForms, HasActions
         DB::transaction(function () use ($periodeId) {
             RekapInventarisPc::where('rekap_inventaris_periode_id', $periodeId)->delete();
             RekapInventarisSpec::where('rekap_inventaris_periode_id', $periodeId)->delete();
+            RekapInventarisNonPc::where('rekap_inventaris_periode_id', $periodeId)->delete();
         });
     }
 

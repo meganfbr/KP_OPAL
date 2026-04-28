@@ -43,6 +43,19 @@
                 ],
                 key('pc-table-' . $this->periodeId . '-' . ($this->laboratoriumId ?? 'all'))
             )
+
+            <div class="pt-8">
+                @livewire(
+                    'rekap-inventaris.non-pc-table',
+                    [
+                        'periodeId'      => $this->periodeId,
+                        'bulan'          => $this->bulan,
+                        'tahun'          => $this->tahun,
+                        'laboratoriumId' => $this->laboratoriumId,
+                    ],
+                    key('non-pc-table-' . $this->periodeId . '-' . ($this->laboratoriumId ?? 'all'))
+                )
+            </div>
         @else
             <div class="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-8 text-center">
                 <div class="text-gray-400 dark:text-gray-500">

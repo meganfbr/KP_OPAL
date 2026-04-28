@@ -7,8 +7,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 
+use App\Traits\HasActivityLog;
+
 class BarangMasuk extends Model
 {
+    use HasActivityLog;
+
+    protected $activityModul = 'Barang Masuk';
+
     protected $table = 'barang_masuk';
 
     protected $fillable = [

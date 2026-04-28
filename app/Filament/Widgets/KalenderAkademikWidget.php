@@ -13,8 +13,8 @@ class KalenderAkademikWidget extends Widget
     // Pastikan widget selalu terlihat
     protected static bool $isLazy = false;
 
-    // Widget akan menggunakan lebar penuh
-    protected int | string | array $columnSpan = 'full';
+    // Widget akan menggunakan setengah lebar (1 kolom dari default 2 kolom)
+    protected int | string | array $columnSpan = 1;
 
     protected static string $view = 'filament.widgets.kalender-akademik-widget';
 

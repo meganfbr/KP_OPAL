@@ -7,10 +7,14 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
-use Illuminate\Support\Facades\Auth;
+use App\Traits\HasActivityLog;
 
 class Laboratorium extends Model
 {
+    use HasActivityLog;
+
+    protected $activityModul = 'Laboratorium';
+
     protected $guarded = ['id'];
 
     protected $table = 'laboratoria';

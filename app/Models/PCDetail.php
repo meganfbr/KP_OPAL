@@ -7,9 +7,13 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
 
+use App\Traits\HasActivityLog;
+
 class PCDetail extends Model
 {
-    use HasFactory;
+    use HasFactory, HasActivityLog;
+
+    protected $activityModul = 'Komponen PC';
 
     protected $table = 'pc_details';
     protected $guarded = ['id'];
