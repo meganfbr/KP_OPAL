@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\PCInventoryResource\Pages;
 
 use App\Filament\Resources\PCInventoryResource;
+use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
 use Illuminate\Database\Eloquent\Model;
 
@@ -10,40 +11,39 @@ class EditPCInventory extends EditRecord
 {
     protected static string $resource = PCInventoryResource::class;
 
-    protected function fillForm(): void
+    protected function mutateFormDataBeforeFill(array $data): array
     {
-        parent::fillForm();
-        // Mengisi form 'details' dengan data dari relasi inventoriable
-        $this->form->fill(['details' => $this->record->inventoriable->toArray()]);
+        $data['components'] = PCInventoryResource::getComponentFormData($this->record);
+
+        return $data;
     }
 
     protected function handleRecordUpdate(Model $record, array $data): Model
     {
-        // 1. Ambil data detail dari form
-        $detailsData = $data['details'];
-        unset($data['details']); // Hapus dari data utama
+        $components = $data['components'] ?? [];
 
-        // 2. Update record inventoriable (pc_details)
-        $record->inventoriable->update($detailsData);
+        unset($data['components']);
 
-        // 3. Update record inventaris utama
+        /*
+         * Asal, Lokasi, dan NoPC tidak diedit manual dari form edit.
+         * Perubahan lokasi hanya lewat fitur Select / Pindahkan.
+         */
+        unset($data['asal_id']);
+        unset($data['lokasi_id']);
+        unset($data['laboratorium_id']);
+        unset($data['no_pc']);
+
         $record->update($data);
+
+        PCInventoryResource::syncPcComponents($record, $components);
 
         return $record;
     }
 
-    protected function getRedirectUrl(): string
+    protected function getHeaderActions(): array
     {
-        // Ambil ID laboratorium dari record yang baru diupdate
-        $labId = $this->record->laboratorium_id;
-
-        // Redirect ke halaman index dengan filter laboratorium yang sesuai
-        return $this->getResource()::getUrl('index', [
-            'tableFilters' => [
-                'laboratorium' => [
-                    'value' => $labId
-                ]
-            ]
-        ]);
+        return [
+            Actions\DeleteAction::make(),
+        ];
     }
 }

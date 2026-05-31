@@ -3,7 +3,6 @@
 namespace App\Filament\Resources\PCInventoryResource\Pages;
 
 use App\Filament\Resources\PCInventoryResource;
-use App\Models\PCDetail;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
 
@@ -13,45 +12,49 @@ class CreatePCInventory extends CreateRecord
 
     protected function mutateFormDataBeforeCreate(array $data): array
     {
-        // Ambil lab ID dari URL parameter jika ada
-        $labId = request()->get('tableFilters')['laboratorium']['value'] ?? null;
+        $period = PCInventoryResource::getActivePeriod();
 
-        if ($labId) {
-            $data['laboratorium_id'] = $labId;
-        }
+        /*
+         * Bulan dan tahun tidak diisi dari form,
+         * tapi mengikuti periode tabel yang sedang aktif.
+         */
+        $data['bulan'] = $period['bulan'];
+        $data['tahun'] = $period['tahun'];
+
+        /*
+         * PC baru belum diplot ke mana pun.
+         * Maka asal, lokasi, dan NoPC tetap null.
+         * Di tampilan akan muncul "-".
+         */
+        $data['asal_id'] = null;
+        $data['lokasi_id'] = null;
+        $data['laboratorium_id'] = null;
+        $data['no_pc'] = null;
+
+        /*
+         * Konsep baru tidak memakai pc_details sebagai detail spesifikasi.
+         */
+        $data['inventoriable_id'] = null;
+        $data['inventoriable_type'] = null;
 
         return $data;
     }
 
     protected function handleRecordCreation(array $data): Model
     {
-        // 1. Ambil data detail dari form
-        $detailsData = $data['details'];
-        unset($data['details']); // Hapus dari data utama
+        $components = $data['components'] ?? [];
 
-        // 2. Buat record di tabel pc_details
-        $pcDetail = PCDetail::create($detailsData);
+        unset($data['components']);
 
-        // 3. Kaitkan record pc_details ke data inventaris utama
-        $data['inventoriable_id'] = $pcDetail->id;
-        $data['inventoriable_type'] = PCDetail::class;
+        $record = static::getModel()::create($data);
 
-        // 4. Buat record inventaris
-        return static::getModel()::create($data);
+        PCInventoryResource::syncPcComponents($record, $components);
+
+        return $record;
     }
 
     protected function getRedirectUrl(): string
     {
-        // Ambil ID laboratorium dari record yang baru dibuat
-        $labId = $this->record->laboratorium_id;
-
-        // Redirect ke halaman index dengan filter laboratorium yang sesuai
-        return $this->getResource()::getUrl('index', [
-            'tableFilters' => [
-                'laboratorium' => [
-                    'value' => $labId
-                ]
-            ]
-        ]);
+        return $this->getResource()::getUrl('index');
     }
 }
