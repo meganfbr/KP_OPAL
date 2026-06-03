@@ -66,11 +66,15 @@ class Inventory extends Model
 
     protected static function generateKodeUnique(): string
     {
-        do {
-            $kode = 'PC-' . now()->format('Ymd') . '-' . strtoupper(Str::random(5));
-        } while (self::query()->where('kode_unique', $kode)->exists());
+        $lastKode = self::query()
+            ->whereNotNull('kode_unique')
+            ->where('kode_unique', 'REGEXP', '^[0-9]+$')
+            ->orderByRaw('CAST(kode_unique AS UNSIGNED) DESC')
+            ->value('kode_unique');
 
-        return $kode;
+        $nextNumber = $lastKode ? ((int) $lastKode + 1) : 1;
+
+        return str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
     }
 
     protected static function booted(): void

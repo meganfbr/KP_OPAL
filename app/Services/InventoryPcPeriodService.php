@@ -44,16 +44,33 @@ class InventoryPcPeriodService
                 $copy->tahun = $tahun;
                 $copy->save();
 
-                if ($source->pcDetail) {
-                    $copy->pcDetail()->create([
-                        'posisi' => $source->pcDetail->posisi,
-                    ]);
+               if ($source->pcDetail) {
+                    $copy->pcDetail()->updateOrCreate(
+                        ['inventory_id' => $copy->id],
+                        ['posisi' => $source->pcDetail->posisi]
+                    );
                 }
 
                 foreach ($source->pcComponents as $component) {
-                    $newComponent = $component->replicate(['id', 'inventory_id', 'created_at', 'updated_at']);
-                    $newComponent->inventory_id = $copy->id;
-                    $newComponent->save();
+                    $copy->pcComponents()->updateOrCreate(
+                        [
+                            'komponen' => $component->komponen,
+                        ],
+                        [
+                            'urutan' => $component->urutan,
+                            'motherboard_id' => $component->motherboard_id,
+                            'processor_id' => $component->processor_id,
+                            'penyimpanan_id' => $component->penyimpanan_id,
+                            'vga_id' => $component->vga_id,
+                            'ram_id' => $component->ram_id,
+                            'dvd_id' => $component->dvd_id,
+                            'keyboard_id' => $component->keyboard_id,
+                            'mouse_id' => $component->mouse_id,
+                            'monitor_id' => $component->monitor_id,
+                            'kondisi' => $component->kondisi,
+                            'keterangan' => $component->keterangan,
+                        ]
+                    );
                 }
             }
         });

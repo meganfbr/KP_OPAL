@@ -5,7 +5,6 @@ namespace App\Traits;
 use App\Models\Laboratorium;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
-use Spatie\Permission\Models\Permission;
 
 trait HasLabPermissions
 {
@@ -26,23 +25,26 @@ trait HasLabPermissions
         if (is_numeric($lab)) {
             // If lab ID is provided, get the lab ruang
             $laboratory = Laboratorium::find($lab);
-            if (!$laboratory) {
+
+            if (! $laboratory) {
                 return false;
             }
+
             $labName = $laboratory->ruang;
         } else {
             // Lab name was provided directly
             $labName = $lab;
         }
 
-        // Strip "LAB " from the lab name if exists, then create the slug
-        $cleanedName = str_ireplace('LAB ', '', $labName);
-        $labSlug = strtolower(str_replace([' ', '.'], ['_', '_'], trim($cleanedName)));
-        
-        // Format: lab_{slug}_{action}
-        $permissionName = "lab_{$labSlug}_{$action}";
+        $permissionNames = $this->getLabPermissionNameVariants($labName, $action);
 
-        return $this->can($permissionName);
+        foreach ($permissionNames as $permissionName) {
+            if ($this->can($permissionName)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -74,13 +76,13 @@ trait HasLabPermissions
 
             // For each lab, check if the user has the specific permission
             foreach ($laboratories as $lab) {
-                $labSlug = strtolower(str_replace([' ', '.'], ['_', '_'], $lab->ruang));
-                // Format: lab_{slug}_{action}
-                $permissionName = "lab_{$labSlug}_{$action}";
+                $permissionNames = $this->getLabPermissionNameVariants($lab->ruang, $action);
 
-                // If the user has this permission (through any role), add the lab
-                if (in_array($permissionName, $userPermissions)) {
-                    $authorizedLabs[] = $lab->id;
+                foreach ($permissionNames as $permissionName) {
+                    if (in_array($permissionName, $userPermissions, true)) {
+                        $authorizedLabs[] = $lab->id;
+                        break;
+                    }
                 }
             }
 
@@ -106,5 +108,30 @@ trait HasLabPermissions
         $authorizedLabIds = $this->getAuthorizedLabIds($action);
 
         return $query->whereIn($labIdField, $authorizedLabIds);
+    }
+
+    /**
+     * Membuat beberapa kemungkinan nama permission lab.
+     * Ini dibuat agar sistem tetap bisa membaca format permission lama dan baru.
+     *
+     * Contoh:
+     * Lab A -> lab_lab_a_view
+     * Lab A -> lab_a_view
+     *
+     * @param string $labName
+     * @param string $action
+     * @return array
+     */
+    private function getLabPermissionNameVariants(string $labName, string $action): array
+    {
+        $originalSlug = strtolower(str_replace([' ', '.'], ['_', '_'], trim($labName)));
+
+        $cleanedName = str_ireplace('LAB ', '', $labName);
+        $cleanedSlug = strtolower(str_replace([' ', '.'], ['_', '_'], trim($cleanedName)));
+
+        return array_values(array_unique([
+            "lab_{$originalSlug}_{$action}",
+            "lab_{$cleanedSlug}_{$action}",
+        ]));
     }
 }

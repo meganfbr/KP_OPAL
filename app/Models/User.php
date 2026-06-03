@@ -19,7 +19,7 @@ class User extends Authenticatable
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'email', 'npp', 'no_phone', 'posisi', 'tanggal_masuk', 'tanggal_keluar'])
+            ->logOnly(['name', 'email', 'npp', 'no_phone', 'position', 'tanggal_masuk', 'tanggal_keluar'])
             ->logOnlyDirty()
             ->setDescriptionForEvent(fn(string $eventName) => "User telah di-{$eventName}")
             ->useLogName('user');
@@ -36,7 +36,7 @@ class User extends Authenticatable
         'password',
         'no_phone',
         'npp',
-        'posisi',
+        'position',
         'foto',
         'tanggal_masuk',
         'tanggal_keluar',

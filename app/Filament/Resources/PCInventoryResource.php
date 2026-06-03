@@ -444,15 +444,20 @@ public static function infolist(Infolist $infolist): Infolist
             return 'GD';
         }
 
-        if (preg_match('/LAB\s*([A-N])/', $ruang, $matches)) {
+        /*
+        * Ambil huruf lab dari bagian paling akhir.
+        * Contoh:
+        * LAB D2A -> A
+        * LAB D2B -> B
+        * LAB D2C -> C
+        * LAB A   -> A
+        * LAB B   -> B
+        */
+        if (preg_match('/([A-N])$/', $ruang, $matches)) {
             return $matches[1];
         }
 
-        if (preg_match('/^[A-N]$/', $ruang)) {
-            return $ruang;
-        }
-
-        return substr($ruang, -1);
+        return null;
     }
 
     protected static function isGudang(?Laboratorium $laboratorium): bool
@@ -488,11 +493,15 @@ public static function infolist(Infolist $infolist): Infolist
 
     protected static function generateKodeUnique(): string
     {
-        do {
-            $kode = 'PC-' . now()->format('Ymd') . '-' . strtoupper(Str::random(5));
-        } while (Inventory::query()->where('kode_unique', $kode)->exists());
+        $lastKode = Inventory::query()
+            ->whereNotNull('kode_unique')
+            ->where('kode_unique', 'REGEXP', '^[0-9]+$')
+            ->orderByRaw('CAST(kode_unique AS UNSIGNED) DESC')
+            ->value('kode_unique');
 
-        return $kode;
+        $nextNumber = $lastKode ? ((int) $lastKode + 1) : 1;
+
+        return str_pad((string) $nextNumber, 3, '0', STR_PAD_LEFT);
     }
 
     protected static function conditionOptions(): array

@@ -6,6 +6,8 @@ use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 
 class UserSeeder extends Seeder
 {
@@ -14,7 +16,14 @@ class UserSeeder extends Seeder
      */
     public function run(): void
     {
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
         // Super Admin
+        Role::firstOrCreate([
+            'name' => 'super_admin',
+            'guard_name' => 'web',
+        ]);
+
         $superAdmin = User::updateOrCreate(
             ['email' => 'superadmin@mail.com'],
             [
@@ -26,54 +35,61 @@ class UserSeeder extends Seeder
                 'position' => 'Kepala Laboratorium',
             ]
         );
-        $superAdmin->assignRole('super_admin');
 
-        $labUsers = [
-            'D2A' => ['email' => 'laboran_labd2a@mail.com', 'password' => 'lab-d2a'],
-            'D2B' => ['email' => 'laboran_labd2b@mail.com', 'password' => 'lab-d2b'],
-            'D2C' => ['email' => 'laboran_labd2c@mail.com', 'password' => 'lab-d2c'],
-            'D2D' => ['email' => 'laboran_labd2d@mail.com', 'password' => 'lab-d2d'],
-            'D2E' => ['email' => 'laboran_labd2e@mail.com', 'password' => 'lab-d2e'],
-            'D2F' => ['email' => 'laboran_labd2f@mail.com', 'password' => 'lab-d2f'],
-            'D2G' => ['email' => 'laboran_labd2g@mail.com', 'password' => 'lab-d2g'],
-            'D2H' => ['email' => 'laboran_labd2h@mail.com', 'password' => 'lab-d2h'],
-            'D2I' => ['email' => 'laboran_labd2i@mail.com', 'password' => 'lab-d2i'],
-            'D2J' => ['email' => 'laboran_labd2j@mail.com', 'password' => 'lab-d2j'],
-            'D2K' => ['email' => 'laboran_labd2k@mail.com', 'password' => 'lab-d2k'],
-            'D3L' => ['email' => 'laboran_labd3l@mail.com', 'password' => 'lab-d3l'],
-            'D3M' => ['email' => 'laboran_labd3m@mail.com', 'password' => 'lab-d3m'],
-            'D3N' => ['email' => 'laboran_labd3n@mail.com', 'password' => 'lab-d3n'],
+        $superAdmin->syncRoles(['super_admin']);
+
+        $labs = [
+            'D2A', 'D2B', 'D2C', 'D2D', 'D2E', 'D2F', 'D2G',
+            'D2H', 'D2I', 'D2J', 'D2K', 'D3L', 'D3M', 'D3N'
         ];
+
+        $shifts = ['pagi', 'siang'];
 
         $userRows = [
             ['Super Administrator', 'superadmin@mail.com', 'A11.2022.2022', 'super_admin', 'superadmin'],
         ];
 
-        foreach ($labUsers as $labSlug => $userData) {
-            $user = User::updateOrCreate(
-                ['email' => $userData['email']],
-                [
-                    'name' => 'Laboran Lab ' . strtoupper($labSlug),
-                    'npp' => 'LAB' . strtolower($labSlug) . '.2026',
-                    'no_phone' => '081234567890',
-                    'password' => Hash::make($userData['password']),
-                    'tanggal_masuk' => '2024-01-01',
-                    'position' => 'Laboran',
-                ]
-            );
-
+        foreach ($labs as $labSlug) {
             $labRole = 'Laboran_' . strtoupper($labSlug);
-            $user->syncRoles([$labRole]);
-            $user->givePermissionTo($this->getLabPermissions($labSlug));
 
-            $userRows[] = [
-                $user->name,
-                $userData['email'],
-                $user->npp,
-                $labRole,
-                $userData['password'],
-            ];
+            Role::firstOrCreate([
+                'name' => $labRole,
+                'guard_name' => 'web',
+            ]);
+
+            foreach ($shifts as $shift) {
+                $labSlugLower = strtolower($labSlug);
+                $email = "laboran_{$labSlugLower}_{$shift}@mail.com";
+                $passwordPlain = "lab-{$labSlugLower}-{$shift}";
+                $npp = "LAB{$labSlugLower}.{$shift}.2026";
+                $name = "Laboran Lab " . strtoupper($labSlug) . " " . ucfirst($shift);
+
+                $user = User::updateOrCreate(
+                    ['email' => $email],
+                    [
+                        'name' => $name,
+                        'npp' => $npp,
+                        'no_phone' => '081234567890',
+                        'password' => Hash::make($passwordPlain),
+                        'tanggal_masuk' => '2026-01-01',
+                        'position' => 'Laboran',
+                    ]
+                );
+
+                $user->syncRoles([$labRole]);
+                $user->syncPermissions($this->getLabPermissions($labSlug));
+
+                $userRows[] = [
+                    $user->name,
+                    $email,
+                    $user->npp,
+                    $labRole,
+                    $passwordPlain,
+                ];
+            }
         }
+
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         $this->command->info('Users seeded successfully!');
         $this->command->table(
@@ -85,13 +101,13 @@ class UserSeeder extends Seeder
     protected function getLabPermissions(string $labSlug): array
     {
         $labSlug = strtolower($labSlug);
+        $actions = ['view', 'manage', 'edit', 'delete'];
 
-        $permissions = [
-            "lab_{$labSlug}_view",
-            "lab_{$labSlug}_manage",
-            "lab_{$labSlug}_edit",
-            "lab_{$labSlug}_delete",
-        ];
+        $permissions = [];
+
+        foreach ($actions as $action) {
+            $permissions[] = "lab_{$labSlug}_{$action}";
+        }
 
         foreach ($permissions as $permissionName) {
             Permission::firstOrCreate([
