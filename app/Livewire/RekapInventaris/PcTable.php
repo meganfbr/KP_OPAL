@@ -67,85 +67,100 @@ class PcTable extends Component implements HasForms, HasTable
             )
             ->heading('Rekap PC')
             ->headerActions([
-                Tables\Actions\CreateAction::make()
-                    ->label('Tambah PC')
-                    ->visible(!auth()->user()->hasRole('super_admin'))
-                    ->modalWidth('7xl')
-                    ->form($this->getPcFormSchema(isEdit: false))
-                    ->using(function (array $data) {
-                        $periodeId = $this->periodeId;
+                Tables\Actions\Action::make('sinkronisasi')
+                    ->label('Sinkronisasi Data PC')
+                    ->icon('heroicon-o-arrow-path')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Sinkronisasi Data PC dari Master')
+                    ->modalDescription('Proses ini akan menarik data PC dari master Inventaris sesuai laboratorium yang dipilih. PC yang belum ada pada rekap bulan ini akan ditambahkan otomatis dengan kondisi "Baik".')
+                    ->modalSubmitActionLabel('Ya, Sinkronisasi')
+                    ->action(function () {
+                        $labId = $this->laboratoriumId;
+                        if (!$labId) {
+                            $periodeInfo = \App\Models\RekapInventarisPeriode::find($this->periodeId);
+                            $labId = $periodeInfo?->laboratorium_id;
+                        }
+                        
+                        if (!$labId) {
+                            \Filament\Notifications\Notification::make()->title('Gagal')->body('Laboratorium tidak ditemukan.')->danger()->send();
+                            return;
+                        }
+                        
+                        $masterPcs = \App\Models\Inventory::whereNull('inventoriable_type')
+                            ->where('lokasi_id', $labId)
+                            ->whereNotNull('no_pc')
+                            ->with('pcComponents')
+                            ->get();
+                            
+                        if ($masterPcs->isEmpty()) {
+                            \Filament\Notifications\Notification::make()->title('Info')->body('Tidak ada data PC di master Inventaris untuk laboratorium ini.')->info()->send();
+                            return;
+                        }
+
                         $service = resolve(\App\Services\RekapInventarisSpecService::class);
+                        $countAdded = 0;
 
-                        $spec = $service->findOrCreate(
-                            $periodeId,
-                            $data['spec_details'] ?? [],
-                            $data['kondisi']
-                        );
+                        foreach ($masterPcs as $master) {
+                            $exists = \App\Models\RekapInventarisPc::where('rekap_inventaris_periode_id', $this->periodeId)
+                                ->where('no_pc', $master->no_pc)
+                                ->exists();
 
-                        $pc = RekapInventarisPc::create([
-                            'rekap_inventaris_periode_id' => $periodeId,
-                            'rekap_inventaris_spec_id' => $spec->id,
-                            'no_pc' => $this->generateNextNoPc(),
-                            'lokasi' => $data['lokasi'],
-                            'kondisi' => $data['kondisi'],
-                        ]);
+                            if (!$exists) {
+                                $details = [];
+                                $mapComp = [
+                                    'Motherboard' => 1, 'Processor' => 2, 'Hardisk' => 3, 'VGA' => 4,
+                                    'RAM' => 5, 'DVD' => 6, 'Keyboard' => 7, 'Mouse' => 8, 'Monitor' => 9
+                                ];
 
-                        $service->syncPeriodSpecOrder($periodeId);
+                                foreach ($master->pcComponents as $comp) {
+                                    $index = $mapComp[$comp->komponen] ?? null;
+                                    if ($index) {
+                                        $details[$index] = [
+                                            'detail' => $comp->detail_merk ?? '-',
+                                            'kondisi' => 'Baik',
+                                            'catatan_kondisi' => '',
+                                        ];
+                                    }
+                                }
+                                
+                                $spec = $service->findOrCreate($this->periodeId, $details, 'Baik');
 
-                        return $pc->fresh();
+                                \App\Models\RekapInventarisPc::create([
+                                    'rekap_inventaris_periode_id' => $this->periodeId,
+                                    'rekap_inventaris_spec_id' => $spec->id,
+                                    'no_pc' => $master->no_pc,
+                                    'lokasi' => $master->pcDetail->posisi ?? 'Client',
+                                    'kondisi' => 'Baik',
+                                ]);
+                                $countAdded++;
+                            }
+                        }
+
+                        if ($countAdded > 0) {
+                            $service->syncPeriodSpecOrder($this->periodeId);
+                            \Filament\Notifications\Notification::make()->title('Berhasil')->body("Tersinkronisasi {$countAdded} PC baru.")->success()->send();
+                        } else {
+                            \Filament\Notifications\Notification::make()->title('Info')->body('Semua PC sudah tersinkronisasi, tidak ada data baru.')->info()->send();
+                        }
                     }),
             ])
             ->columns([
-                TextColumn::make('id')
-                    ->label('No')
-                    ->rowIndex(),
-
                 TextColumn::make('no_pc')
-                    ->label('NoPC')
-                    ->searchable(),
+                    ->label('No PC')
+                    ->searchable()
+                    ->sortable(),
 
-                TextColumn::make('spec.kode_spek')
-                    ->label('Spek')
-                    ->color('primary')
-                    ->action(
-                        Tables\Actions\Action::make('lihatSpek')
-                            ->modalHeading(fn (RekapInventarisPc $record) => 'Detail Spesifikasi - ' . ($record->spec?->kode_spek ?? '-'))
-                            ->modalWidth('5xl')
-                            ->modalSubmitAction(false)
-                            ->modalCancelActionLabel('Tutup')
-                            ->infolist(fn (RekapInventarisPc $record) => [
-                                \Filament\Infolists\Components\Section::make($record->spec?->kode_spek ?? 'Detail Spesifikasi')
-                                    ->schema(
-                                        collect($record->spec?->details ?? [])->map(function ($detail) {
-                                            return \Filament\Infolists\Components\Grid::make(4)->schema([
-                                                \Filament\Infolists\Components\TextEntry::make('komponen_' . $detail->id)
-                                                    ->label('')
-                                                    ->state($detail->komponen),
-
-                                                \Filament\Infolists\Components\TextEntry::make('detail_' . $detail->id)
-                                                    ->label('Detail')
-                                                    ->state($detail->detail ?: '-'),
-
-                                                \Filament\Infolists\Components\TextEntry::make('kondisi_' . $detail->id)
-                                                    ->label('Kondisi')
-                                                    ->badge()
-                                                    ->state($detail->kondisi ?: '-'),
-
-                                                \Filament\Infolists\Components\TextEntry::make('catatan_' . $detail->id)
-                                                    ->label('Keterangan')
-                                                    ->state($detail->catatan_kondisi ?: '-'),
-                                            ]);
-                                        })->toArray()
-                                    ),
-                            ])
-                    ),
-
-                TextColumn::make('lokasi')
-                    ->label('Lokasi')
-                    ->badge(),
+                TextColumn::make('periode.laboratorium.ruang')
+                    ->label('Ruang Laboratorium')
+                    ->state(function (RekapInventarisPc $record) {
+                        return \App\Models\Laboratorium::find($this->laboratoriumId ?? $record->periode->laboratorium_id)?->ruang ?? '-';
+                    })
+                    ->badge()
+                    ->color('info'),
 
                 TextColumn::make('kondisi')
-                    ->label('Kondisi')
+                    ->label('Kondisi PC')
                     ->badge()
                     ->color(fn (string $state): string => match ($state) {
                         'Baik' => 'success',
@@ -154,170 +169,22 @@ class PcTable extends Component implements HasForms, HasTable
                         'Dalam Perbaikan' => 'info',
                         default => 'gray',
                     })
-                    ->icon(fn (string $state): ?string => $state !== 'Baik' ? 'heroicon-m-exclamation-circle' : null)
-                    ->action(
-                        Tables\Actions\Action::make('lihatDetailKerusakan')
-                            ->modalHeading(fn (RekapInventarisPc $record) => 'Detail Masalah - ' . $record->no_pc)
-                            ->modalWidth('4xl')
-                            ->modalSubmitAction(false) // Hide submit button, it's just for viewing
-                            ->modalCancelActionLabel('Tutup')
-                            ->infolist(fn (RekapInventarisPc $record) => [
-                                \Filament\Infolists\Components\Section::make('Daftar Kerusakan Komponen')
-                                    ->description('Hanya menampilkan komponen yang bermasalah (Rusak / Kurang Baik).')
-                                    ->schema(function() use ($record) {
-                                        $issues = collect($record->spec?->details ?? [])
-                                            ->filter(fn($detail) => $detail->kondisi !== 'Baik');
-                                        
-                                        if ($issues->isEmpty()) {
-                                            return [\Filament\Infolists\Components\TextEntry::make('no_issues')
-                                                ->label('')
-                                                ->state('Semua komponen dalam kondisi baik.')];
-                                        }
+                    ->icon(fn (string $state): ?string => $state !== 'Baik' ? 'heroicon-m-exclamation-circle' : null),
 
-                                        return $issues->map(function ($detail) {
-                                            return \Filament\Infolists\Components\Grid::make(3)->schema([
-                                                \Filament\Infolists\Components\TextEntry::make('comp_' . $detail->id)
-                                                    ->label('Komponen')
-                                                    ->state($detail->komponen)
-                                                    ->weight(\Filament\Support\Enums\FontWeight::Bold),
-                                                
-                                                \Filament\Infolists\Components\TextEntry::make('cond_' . $detail->id)
-                                                    ->label('Kondisi')
-                                                    ->state($detail->kondisi)
-                                                    ->badge()
-                                                    ->color(fn($state) => match($state) {
-                                                        'Rusak' => 'danger',
-                                                        'Kurang Baik' => 'warning',
-                                                        default => 'gray'
-                                                    }),
-                                                
-                                                \Filament\Infolists\Components\TextEntry::make('note_' . $detail->id)
-                                                    ->label('Keterangan')
-                                                    ->state($detail->catatan_kondisi ?: '-'),
-                                            ]);
-                                        })->toArray();
-                                    }),
-                            ])
-                    ),
-
-                TextColumn::make('spec_details_issues')
-                    ->label('Masalah Komponen')
-                    ->state(function (RekapInventarisPc $record) {
-                        return collect($record->spec?->details ?? [])
+                TextColumn::make('keterangan_kerusakan')
+                    ->label('Keterangan Kerusakan')
+                    ->state(function (\App\Models\RekapInventarisPc $record) {
+                        $issues = collect($record->spec?->details ?? [])
                             ->filter(fn($detail) => !in_array($detail->kondisi, ['Baik', null, '']))
-                            ->map(fn($detail) => "{$detail->komponen}: {$detail->kondisi}");
+                            ->map(fn($detail) => "{$detail->komponen}: " . (!empty($detail->catatan_kondisi) ? $detail->catatan_kondisi : $detail->kondisi));
+                        return $issues->isEmpty() ? '-' : $issues;
                     })
                     ->listWithLineBreaks()
                     ->bulleted()
-                    ->placeholder('Tidak ada (Semua Baik)')
                     ->color('danger')
-                    ->extraAttributes(['class' => 'text-xs']),
+                    ->extraAttributes(['class' => 'text-sm']),
             ])
             ->actions([
-
-                Tables\Actions\Action::make('copyPrev')
-                    ->hiddenLabel()
-                    ->icon('img-copy-atas')
-                    ->iconSize(\Filament\Support\Enums\IconSize::Large)
-                    ->visible(!auth()->user()->hasRole('super_admin'))
-                    ->color('info')
-                    ->requiresConfirmation()
-                    ->modalHeading('Copy ke Baris Sebelumnya?')
-                    ->modalDescription('Data akan dicopy ke nomor PC sebelumnya jika slot tersebut belum ada.')
-                    ->modalSubmitActionLabel('Ya, Copy')
-                    ->action(function (RekapInventarisPc $record): void {
-                        $currentNumber = $this->extractNoPcNumber($record->no_pc);
-                        $prevNumber = $currentNumber - 1;
-
-                        if ($prevNumber <= 0) {
-                            Notification::make()
-                                ->title('Gagal')
-                                ->body('Tidak bisa copy ke bawah ' . $this->formatNoPc(1) . '.')
-                                ->danger()
-                                ->send();
-                            return;
-                        }
-
-                        $prevNoPc = $this->formatNoPc($prevNumber);
-
-                        $exists = RekapInventarisPc::query()
-                            ->where('rekap_inventaris_periode_id', $this->periodeId)
-                            ->where('no_pc', $prevNoPc)
-                            ->exists();
-
-                        if ($exists) {
-                            Notification::make()
-                                ->title('Gagal')
-                                ->body("{$prevNoPc} sudah tersedia dan tidak bisa dicopy ke baris sebelumnya.")
-                                ->danger()
-                                ->send();
-                            return;
-                        }
-
-                        RekapInventarisPc::create([
-                            'rekap_inventaris_periode_id' => $this->periodeId,
-                            'rekap_inventaris_spec_id' => $record->rekap_inventaris_spec_id,
-                            'no_pc' => $prevNoPc,
-                            'lokasi' => $record->lokasi,
-                            'kondisi' => $record->kondisi,
-                        ]);
-
-                        resolve(\App\Services\RekapInventarisSpecService::class)
-                            ->syncPeriodSpecOrder($this->periodeId);
-
-                        Notification::make()
-                            ->title('Berhasil')
-                            ->body("Data berhasil dicopy ke {$prevNoPc}.")
-                            ->success()
-                            ->send();
-                    }),
-
-                Tables\Actions\Action::make('copyNext')
-                    ->hiddenLabel()
-                    ->icon('img-copy-bawah')
-                    ->iconSize(\Filament\Support\Enums\IconSize::Large)
-                    ->visible(!auth()->user()->hasRole('super_admin'))
-                    ->color('warning')
-                    ->requiresConfirmation()
-                    ->modalHeading('Copy ke Baris Berikutnya?')
-                    ->modalDescription('Data akan dicopy ke nomor PC berikutnya jika slot tersebut belum ada.')
-                    ->modalSubmitActionLabel('Ya, Copy')
-                    ->action(function (RekapInventarisPc $record): void {
-                        $currentNumber = $this->extractNoPcNumber($record->no_pc);
-                        $nextNumber = $currentNumber + 1;
-                        $nextNoPc = $this->formatNoPc($nextNumber);
-
-                        $exists = RekapInventarisPc::query()
-                            ->where('rekap_inventaris_periode_id', $this->periodeId)
-                            ->where('no_pc', $nextNoPc)
-                            ->exists();
-
-                        if ($exists) {
-                            Notification::make()
-                                ->title('Gagal')
-                                ->body("{$nextNoPc} sudah tersedia dan tidak bisa dicopy ke baris berikutnya.")
-                                ->danger()
-                                ->send();
-                            return;
-                        }
-
-                        RekapInventarisPc::create([
-                            'rekap_inventaris_periode_id' => $this->periodeId,
-                            'rekap_inventaris_spec_id' => $record->rekap_inventaris_spec_id,
-                            'no_pc' => $nextNoPc,
-                            'lokasi' => $record->lokasi,
-                            'kondisi' => $record->kondisi,
-                        ]);
-
-                        resolve(\App\Services\RekapInventarisSpecService::class)
-                            ->syncPeriodSpecOrder($this->periodeId);
-
-                        Notification::make()
-                            ->title('Berhasil')
-                            ->body("Data berhasil dicopy ke {$nextNoPc}.")
-                            ->success()
-                            ->send();
-                    }),
 
                 Tables\Actions\EditAction::make()
                     ->modalWidth('7xl')
@@ -371,7 +238,7 @@ class PcTable extends Component implements HasForms, HasTable
                             $record->spec->fingerprint === $incomingFingerprint
                         ) {
                             $record->update([
-                                'lokasi' => $data['lokasi'],
+                                'lokasi' => $data['lokasi'] ?? $record->lokasi,
                                 'kondisi' => $data['kondisi'],
                             ]);
 
@@ -385,7 +252,7 @@ class PcTable extends Component implements HasForms, HasTable
 
                             $record->update([
                                 'rekap_inventaris_spec_id' => $spec->id,
-                                'lokasi' => $data['lokasi'],
+                                'lokasi' => $data['lokasi'] ?? $record->lokasi,
                                 'kondisi' => $data['kondisi'],
                             ]);
                         }
@@ -396,7 +263,7 @@ class PcTable extends Component implements HasForms, HasTable
                     }),
 
                 Tables\Actions\DeleteAction::make()
-                    ->visible(!auth()->user()->hasRole('super_admin'))
+                    ->visible(auth()->user()->hasRole('super_admin'))
                     ->after(function () {
                         $periodeId = $this->periodeId;
                         $service = resolve(\App\Services\RekapInventarisSpecService::class);
@@ -433,6 +300,7 @@ class PcTable extends Component implements HasForms, HasTable
                             $problematic_pcs = [];
                             $summary_counts = [];
                             $labName = 'Semua Laboratorium';
+                            $tableData = [];
 
                             foreach ($records as $record) {
                                 if ($record->kondisi === 'Baik') {
@@ -482,6 +350,18 @@ class PcTable extends Component implements HasForms, HasTable
                                 
                                 if (count($broken_components_list) > 0) {
                                     $problematic_pcs[] = "- PC " . $record->no_pc . ": " . implode(', ', $broken_components_list);
+                                    
+                                    $inv = \App\Models\Inventory::where('no_pc', $record->no_pc)
+                                        ->where('lokasi_id', $labId)
+                                        ->first();
+                                    $kodePc = $inv ? $inv->kode_unique : '-';
+
+                                    $tableData[] = [
+                                        'no_pc' => $record->no_pc,
+                                        'kode_pc' => $kodePc,
+                                        'komponen' => implode('<br>', $broken_components_list),
+                                        'keterangan' => collect($komponenRusak)->map(fn($k) => ($k['keterangan'] ?: '-'))->implode('<br>'),
+                                    ];
                                 }
                                 $count++;
                             }
@@ -509,6 +389,7 @@ class PcTable extends Component implements HasForms, HasTable
                                 'lab' => $labName,
                                 'tanggal' => $data['tanggal_kejadian'],
                                 'uraian' => $uraian,
+                                'tableData' => $tableData,
                                 'tindakan_langsung' => $data['tindakan_langsung'],
                                 'tindakan_perbaikan' => $tindakan_perbaikan,
                                 'pelapor' => auth()->user()->name,
@@ -531,29 +412,18 @@ class PcTable extends Component implements HasForms, HasTable
     protected function getPcFormSchema(bool $isEdit = false): array
     {
         return [
-            Grid::make(3)->schema([
-                $isEdit
-                    ? Placeholder::make('no_pc_preview')
-                        ->label('NoPC')
-                        ->content(fn ($state) => $state ?: '-')
-                    : Placeholder::make('no_pc_info')
-                        ->label('NoPC')
-                        ->content(fn () => 'Otomatis dibuat saat data disimpan'),
-
-                Select::make('lokasi')
-                    ->label('Lokasi')
-                    ->options([
-                        'Client' => 'Client',
-                        'Laboran' => 'Laboran',
-                        'Dosen' => 'Dosen',
-                    ])
-                    ->required(),
+            Grid::make(2)->schema([
+                Placeholder::make('no_pc_preview')
+                    ->label('No PC')
+                    ->content(fn ($state) => $state ?: '-'),
 
                 Select::make('kondisi')
-                    ->label('Kondisi')
+                    ->label('Kondisi PC')
                     ->options([
                         'Baik' => 'Baik',
+                        'Kurang Baik' => 'Kurang Baik',
                         'Rusak' => 'Rusak',
+                        'Dalam Perbaikan' => 'Dalam Perbaikan',
                     ])
                     ->required(),
             ]),

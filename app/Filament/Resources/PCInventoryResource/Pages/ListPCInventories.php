@@ -54,7 +54,8 @@ class ListPCInventories extends ListRecords
                 }),
 
             Actions\CreateAction::make()
-                ->label('Tambah PC'),
+                ->label('Tambah PC')
+                ->visible(fn (): bool => PCInventoryResource::canCreate()),
         ];
     }
 }

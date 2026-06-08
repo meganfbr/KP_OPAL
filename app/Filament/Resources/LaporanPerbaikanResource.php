@@ -184,8 +184,8 @@ class LaporanPerbaikanResource extends Resource
                                 return;
                             }
 
-                            $problematic_pcs = [];
                             $summary_counts = [];
+                            $tableData = [];
                             
                             $labNames = $records->pluck('ruang_lab')->filter()->unique();
                             $labName = $labNames->count() === 1 ? $labNames->first() : 'Semua Laboratorium';
@@ -197,11 +197,16 @@ class LaporanPerbaikanResource extends Resource
                             $catatan = empty($catatanList) ? 'Melaporkan kerusakan inventaris ke Super Admin.' : implode(', ', $catatanList);
 
                             foreach ($records as $record) {
-                                $komponenRusakStr = [];
+                                $komponenList = [];
+                                $keteranganList = [];
+
                                 foreach (collect($record->komponen_rusak) as $k) {
                                     $kompName = is_array($k) ? $k['komponen'] : $k;
                                     $kondisi = is_array($k) && isset($k['kondisi']) ? $k['kondisi'] : 'Rusak';
-                                    $komponenRusakStr[] = $kompName . ' (' . strtolower($kondisi) . ')';
+                                    $keterangan = is_array($k) && !empty($k['keterangan']) ? $k['keterangan'] : '-';
+                                    
+                                    $komponenList[] = $kompName . ' (' . strtolower($kondisi) . ')';
+                                    $keteranganList[] = $keterangan;
                                     
                                     if (!isset($summary_counts[$kompName])) {
                                         $summary_counts[$kompName] = 0;
@@ -209,12 +214,21 @@ class LaporanPerbaikanResource extends Resource
                                     $summary_counts[$kompName]++;
                                 }
                                 
-                                if (count($komponenRusakStr) > 0) {
-                                    $problematic_pcs[] = "- PC " . $record->no_pc . ": " . implode(', ', $komponenRusakStr);
+                                if (count($komponenList) > 0) {
+                                    $inv = \App\Models\Inventory::where('no_pc', $record->no_pc)
+                                        ->where('lokasi_id', $record->laboratorium_id)
+                                        ->first();
+                                    $kodePc = $inv ? $inv->kode_unique : '-';
+
+                                    $tableData[] = [
+                                        'no_pc' => $record->no_pc,
+                                        'kode_pc' => $kodePc,
+                                        'komponen' => implode('<br>', $komponenList),
+                                        'keterangan' => implode('<br>', $keteranganList),
+                                    ];
                                 }
                             }
                             
-                            $uraian = implode("\\n", $problematic_pcs);
                             $perbaikan_list = [];
                             foreach ($summary_counts as $komp => $qty) {
                                 $perbaikan_list[] = "- Penggantian $komp ($qty unit)";
@@ -228,7 +242,8 @@ class LaporanPerbaikanResource extends Resource
                                 'ketidaksesuaian' => 'Kerusakan Hardware/Software Inventaris',
                                 'lab' => $labName,
                                 'tanggal' => date('d F Y'),
-                                'uraian' => $uraian,
+                                'uraian' => '',
+                                'tableData' => $tableData,
                                 'tindakan_langsung' => $catatan,
                                 'tindakan_perbaikan' => $tindakan_perbaikan,
                                 'pelapor' => $pelaporName,

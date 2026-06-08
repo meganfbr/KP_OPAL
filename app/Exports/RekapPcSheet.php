@@ -36,50 +36,27 @@ class RekapPcSheet implements FromCollection, WithHeadings, WithMapping, ShouldA
     public function headings(): array
     {
         return [
-            'No',
             'No PC',
-            'Monitor',
-            'RAM',
-            'Processor',
-            'Motherboard',
-            'Hardisk',
-            'VGA',
-            'DVD',
-            'Keyboard',
-            'Mouse',
-            'Lokasi',
+            'Ruang Laboratorium',
             'Kondisi PC',
+            'Keterangan Kerusakan',
         ];
     }
 
     public function map($pc): array
     {
-        $details = $pc->spec?->details;
-        $getKondisi = function($komponen) use ($details) {
-            $found = $details?->firstWhere('komponen', $komponen);
-            if (!$found) return '-';
-            
-            $text = $found->kondisi ?: '-';
-            if (!empty($found->catatan_kondisi)) {
-                $text .= " (" . $found->catatan_kondisi . ")";
-            }
-            return $text;
-        };
+        $ruangLab = $pc->periode?->laboratorium?->ruang ?? '-';
+
+        $issues = collect($pc->spec?->details ?? [])
+            ->filter(fn($detail) => !in_array($detail->kondisi, ['Baik', null, '']))
+            ->map(fn($detail) => "{$detail->komponen}: " . (!empty($detail->catatan_kondisi) ? $detail->catatan_kondisi : $detail->kondisi))
+            ->implode(', ');
 
         return [
-            $this->rowNumber++,
             $pc->no_pc,
-            $getKondisi('Monitor'),
-            $getKondisi('RAM'),
-            $getKondisi('Processor'),
-            $getKondisi('Motherboard'),
-            $getKondisi('Hardisk'),
-            $getKondisi('VGA'),
-            $getKondisi('DVD'),
-            $getKondisi('Keyboard'),
-            $getKondisi('Mouse'),
-            $pc->lokasi,
+            $ruangLab,
             $pc->kondisi,
+            $issues ?: '-',
         ];
     }
 }

@@ -49,6 +49,24 @@ class UserSeeder extends Seeder
             ['Super Administrator', 'superadmin@mail.com', 'A11.2022.2022', 'super_admin', 'superadmin'],
         ];
 
+        // Map beberapa lab ke tanggal_keluar contoh untuk demo
+        $kontrakMap = [
+            'D2A' => '2026-12-31', // Aktif sampai akhir tahun
+            'D2B' => '2026-12-31',
+            'D2C' => '2026-06-30', // Berakhir bulan Juni 2026 (bulan ini)
+            'D2D' => '2026-06-15', // Berakhir bulan Juni 2026 (bulan ini)
+            'D2E' => '2026-08-31', // Berakhir tahun ini
+            'D2F' => '2026-09-30', // Berakhir tahun ini
+            'D2G' => null,         // Tanpa tanggal keluar
+            'D2H' => null,
+            'D2I' => '2027-06-30', // Kontrak sampai tahun depan
+            'D2J' => '2027-06-30',
+            'D2K' => '2026-12-31',
+            'D3L' => '2026-12-31',
+            'D3M' => '2026-06-30', // Berakhir bulan ini
+            'D3N' => null,
+        ];
+
         foreach ($labs as $labSlug) {
             $labRole = 'Laboran_' . strtoupper($labSlug);
 
@@ -64,16 +82,23 @@ class UserSeeder extends Seeder
                 $npp = "LAB{$labSlugLower}.{$shift}.2026";
                 $name = "Laboran Lab " . strtoupper($labSlug) . " " . ucfirst($shift);
 
+                $userData = [
+                    'name' => $name,
+                    'npp' => $npp,
+                    'no_phone' => '081234567890',
+                    'password' => Hash::make($passwordPlain),
+                    'tanggal_masuk' => '2026-01-01',
+                    'position' => 'Laboran',
+                ];
+
+                // Tambahkan tanggal_keluar jika ada di map
+                if (isset($kontrakMap[$labSlug])) {
+                    $userData['tanggal_keluar'] = $kontrakMap[$labSlug];
+                }
+
                 $user = User::updateOrCreate(
                     ['email' => $email],
-                    [
-                        'name' => $name,
-                        'npp' => $npp,
-                        'no_phone' => '081234567890',
-                        'password' => Hash::make($passwordPlain),
-                        'tanggal_masuk' => '2026-01-01',
-                        'position' => 'Laboran',
-                    ]
+                    $userData
                 );
 
                 $user->syncRoles([$labRole]);

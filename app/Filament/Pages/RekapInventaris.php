@@ -58,13 +58,22 @@ class RekapInventaris extends Page implements HasForms, HasActions
         if ($isSuperAdmin) {
             $this->laboratoriumId = (int) request()->query('lab', Laboratorium::first()?->id);
         } else {
-            $role = $user->roles->firstWhere(fn ($r) => str_starts_with($r->name, 'Laboran_'));
-            if ($role) {
+            // Get all lab IDs for this laboran based on their roles
+            $laboranRoles = $user->roles->filter(fn ($r) => str_starts_with($r->name, 'Laboran_'));
+            $authorizedLabIds = [];
+            foreach ($laboranRoles as $role) {
                 $labSlug = str_replace('Laboran_', '', $role->name);
                 $labInfo = Laboratorium::where('ruang', 'LAB ' . strtoupper($labSlug))->first();
                 if ($labInfo) {
-                    $this->laboratoriumId = $labInfo->id;
+                    $authorizedLabIds[] = $labInfo->id;
                 }
+            }
+
+            $requestedLab = (int) request()->query('lab');
+            if ($requestedLab && in_array($requestedLab, $authorizedLabIds)) {
+                $this->laboratoriumId = $requestedLab;
+            } elseif (count($authorizedLabIds) > 0) {
+                $this->laboratoriumId = $authorizedLabIds[0];
             }
         }
 
@@ -139,11 +148,33 @@ class RekapInventaris extends Page implements HasForms, HasActions
                     ->schema([
                         Select::make('lab_id')
                             ->label('Pilih Ruangan')
-                            ->options(Laboratorium::orderBy('ruang')->pluck('ruang', 'id'))
+                            ->options(function () {
+                                $user = auth()->user();
+                                if ($user->hasRole('super_admin')) {
+                                    return Laboratorium::orderBy('ruang')->pluck('ruang', 'id');
+                                }
+                                
+                                $laboranRoles = $user->roles->filter(fn ($r) => str_starts_with($r->name, 'Laboran_'));
+                                $authorizedLabNames = [];
+                                foreach ($laboranRoles as $role) {
+                                    $labSlug = str_replace('Laboran_', '', $role->name);
+                                    $authorizedLabNames[] = 'LAB ' . strtoupper($labSlug);
+                                }
+                                
+                                return Laboratorium::whereIn('ruang', $authorizedLabNames)->orderBy('ruang')->pluck('ruang', 'id');
+                            })
                             ->searchable()
                             ->required()
                             ->live()
-                            ->hidden(!auth()->user()->hasRole('super_admin'))
+                            ->hidden(function () {
+                                $user = auth()->user();
+                                if ($user->hasRole('super_admin')) {
+                                    return false;
+                                }
+                                
+                                $laboranRoles = $user->roles->filter(fn ($r) => str_starts_with($r->name, 'Laboran_'));
+                                return $laboranRoles->count() <= 1;
+                            })
                             ->afterStateUpdated(function ($state) {
                                 $this->redirect(static::getUrl(['lab' => $state, 'bulan' => $this->bulan, 'tahun' => $this->tahun]));
                             }),

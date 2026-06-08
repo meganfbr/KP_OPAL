@@ -4,14 +4,14 @@
             <div class="space-y-4">
                 <div class="flex items-center gap-3 flex-wrap">
                     <span class="inline-flex items-center rounded-full bg-primary-100 px-3 py-1 text-sm font-semibold text-primary-800 dark:bg-primary-900 dark:text-primary-200">
-                        🏫 {{ strtoupper($this->laboratoriumNama ?? 'Laboratorium') }}
+                        {{ strtoupper($this->laboratoriumNama ?? 'Laboratorium') }}
                     </span>
                     <h2 class="text-xl font-bold">
                         Rekap Inventaris — Periode {{ $this->periodeLabel }}
                     </h2>
                     @if (auth()->user()->hasRole('super_admin'))
                         <span class="inline-flex items-center rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                            👁 Mode Hanya Lihat (Super Admin)
+                            Mode Hanya Lihat (Super Admin)
                         </span>
                     @endif
                 </div>

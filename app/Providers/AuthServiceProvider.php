@@ -24,6 +24,11 @@ class AuthServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Implicitly grant "Super Admin" role all permissions
+        Gate::before(function ($user, $ability) {
+            return $user->hasRole('super_admin') ? true : null;
+        });
+
         // Mendaftarkan gate untuk memeriksa izin navigasi
         Gate::define('view-navigation-item', function (User $user, string $permission) {
             // Super admin selalu memiliki akses

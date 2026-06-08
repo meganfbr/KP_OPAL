@@ -82,49 +82,27 @@
     <table class="data-table">
         <thead>
             <tr>
-                <th width="3%">No</th>
-                <th width="7%">No PC</th>
-                <th width="8%">Monitor</th>
-                <th width="8%">RAM</th>
-                <th width="8%">Proc</th>
-                <th width="8%">Mobo</th>
-                <th width="8%">HDD</th>
-                <th width="8%">VGA</th>
-                <th width="7%">DVD</th>
-                <th width="7%">Kbd</th>
-                <th width="7%">Mouse</th>
-                <th width="10%">Lokasi</th>
-                <th width="11%">Kondisi PC</th>
+                <th width="15%">No PC</th>
+                <th width="35%">Ruang Laboratorium</th>
+                <th width="20%">Kondisi PC</th>
+                <th width="30%">Keterangan Kerusakan</th>
             </tr>
         </thead>
         <tbody>
-            @php
-                $getKon = function($details, $komponen) {
-                    $found = $details?->firstWhere('komponen', $komponen);
-                    if (!$found) return '-';
-                    
-                    $out = '<div>' . ($found->kondisi ?: '-') . '</div>';
-                    if (!empty($found->catatan_kondisi)) {
-                        $out .= '<div style="font-size: 7px; color: #666; font-style: italic;">(' . $found->catatan_kondisi . ')</div>';
-                    }
-                    return $out;
-                };
-            @endphp
             @foreach($pcs as $index => $pc)
                 <tr>
-                    <td>{{ $index + 1 }}</td>
                     <td>{{ $pc->no_pc }}</td>
-                    <td>{!! $getKon($pc->spec?->details, 'Monitor') !!}</td>
-                    <td>{!! $getKon($pc->spec?->details, 'RAM') !!}</td>
-                    <td>{!! $getKon($pc->spec?->details, 'Processor') !!}</td>
-                    <td>{!! $getKon($pc->spec?->details, 'Motherboard') !!}</td>
-                    <td>{!! $getKon($pc->spec?->details, 'Hardisk') !!}</td>
-                    <td>{!! $getKon($pc->spec?->details, 'VGA') !!}</td>
-                    <td>{!! $getKon($pc->spec?->details, 'DVD') !!}</td>
-                    <td>{!! $getKon($pc->spec?->details, 'Keyboard') !!}</td>
-                    <td>{!! $getKon($pc->spec?->details, 'Mouse') !!}</td>
-                    <td>{{ $pc->lokasi }}</td>
+                    <td>{{ $pc->periode?->laboratorium?->ruang ?? '-' }}</td>
                     <td>{{ $pc->kondisi }}</td>
+                    <td align="left" style="text-align: left; padding: 4px;">
+                        @php
+                            $issues = collect($pc->spec?->details ?? [])
+                                ->filter(fn($detail) => !in_array($detail->kondisi, ['Baik', null, '']))
+                                ->map(fn($detail) => "{$detail->komponen}: " . (!empty($detail->catatan_kondisi) ? $detail->catatan_kondisi : $detail->kondisi))
+                                ->implode('<br>');
+                        @endphp
+                        {!! $issues ?: '-' !!}
+                    </td>
                 </tr>
             @endforeach
         </tbody>

@@ -63,6 +63,16 @@ class PCInventoryResource extends Resource
         return $user && $user->hasAnyRole(['super_admin', 'admin', 'Admin', 'Super Admin']);
     }
 
+    public static function canAccess(): bool
+    {
+        $user = auth()->user();
+        if (!$user) return false;
+        
+        if (static::canManageInventoryPc()) return true;
+        
+        return $user->roles->pluck('name')->contains(fn ($n) => str_starts_with($n, 'Laboran_'));
+    }
+
     public static function canCreate(): bool
     {
         return static::canManageInventoryPc();
@@ -87,11 +97,30 @@ class PCInventoryResource extends Resource
     {
         $period = static::getActivePeriod();
 
-        return parent::getEloquentQuery()
+        $query = parent::getEloquentQuery()
             ->whereNull('inventoriable_type')
             ->where('bulan', $period['bulan'])
             ->where('tahun', $period['tahun'])
             ->with(['asal', 'lokasi', 'petugas', 'pcDetail', 'pcComponents']);
+            
+        $user = auth()->user();
+        if ($user && !static::canManageInventoryPc()) {
+            $laboranRoles = $user->roles->filter(fn ($r) => str_starts_with($r->name, 'Laboran_'));
+            $authorizedLabNames = [];
+            foreach ($laboranRoles as $role) {
+                $labSlug = str_replace('Laboran_', '', $role->name);
+                $authorizedLabNames[] = 'LAB ' . strtoupper($labSlug);
+            }
+            
+            $labIds = \App\Models\Laboratorium::whereIn('ruang', $authorizedLabNames)->pluck('id')->toArray();
+            if (!empty($labIds)) {
+                $query->whereIn('lokasi_id', $labIds);
+            } else {
+                $query->whereRaw('1 = 0');
+            }
+        }
+
+        return $query;
     }
 
     public static function form(Form $form): Form

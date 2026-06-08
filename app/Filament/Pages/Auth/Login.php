@@ -110,6 +110,32 @@ class Login extends BaseLogin
 
         $user = Filament::auth()->user();
 
+        // Auto-deactivate if contract has expired
+        if (
+            !$user->hasRole('super_admin')
+            && $user->tanggal_keluar !== null
+            && $user->tanggal_keluar < \Carbon\Carbon::today()
+            && $user->is_active
+        ) {
+            $user->update(['is_active' => false]);
+        }
+
+        if (!$user->is_active) {
+            Filament::auth()->logout();
+
+            $message = 'Akun Anda telah dinonaktifkan.';
+            if (
+                $user->tanggal_keluar !== null
+                && $user->tanggal_keluar < \Carbon\Carbon::today()
+            ) {
+                $message = 'Kontrak Anda telah berakhir pada ' . $user->tanggal_keluar->format('d M Y') . '. Akun otomatis dinonaktifkan.';
+            }
+
+            throw ValidationException::withMessages([
+                'data.npp' => $message . ' Silahkan hubungi Super Admin.',
+            ]);
+        }
+
         if (
             ($user instanceof FilamentUser) &&
             (!$user->canAccessPanel(Filament::getCurrentPanel()))

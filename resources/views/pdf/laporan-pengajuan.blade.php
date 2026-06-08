@@ -6,7 +6,9 @@
     <style>
         body {
             font-family: Arial, sans-serif;
-            font-size: 12px;
+            font-size: 11px;
+            margin: 0;
+            padding: 0;
         }
 
         .container {
@@ -17,12 +19,13 @@
         .header-table {
             width: 100%;
             border-collapse: collapse;
+            margin-bottom: 15px;
         }
 
         .header-table td {
             border: 1px solid black;
-            vertical-align: top;
-            padding: 5px;
+            vertical-align: middle;
+            padding: 8px;
         }
 
         .center {
@@ -34,34 +37,81 @@
         }
 
         .title {
-            font-size: 14px;
+            font-size: 13px;
+            font-weight: bold;
+            margin: 5px 0;
+        }
+
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+
+        .info-table td {
+            padding: 4px;
+        }
+        
+        .label {
+            width: 120px;
+            display: inline-block;
             font-weight: bold;
         }
 
-        .section {
-            border: 1px solid black;
-            padding: 8px;
-        }
-
-        .label {
-            width: 200px;
-            display: inline-block;
-        }
-
-        .ttd {
+        .data-table {
             width: 100%;
-            margin-top: 40px;
+            border-collapse: collapse;
+            margin-bottom: 15px;
         }
 
-        .ttd td {
+        .data-table th, .data-table td {
+            border: 1px solid black;
+            padding: 5px;
+            text-align: left;
+            vertical-align: top;
+        }
+
+        .data-table th {
+            background-color: #f2f2f2;
             text-align: center;
-            padding-top: 40px;
+        }
+
+        .section-title {
+            font-weight: bold;
+            margin-top: 10px;
+            margin-bottom: 5px;
         }
 
         .box {
             border: 1px solid black;
             padding: 8px;
-            min-height: 60px;
+            min-height: 40px;
+            margin-bottom: 15px;
+        }
+
+        .verification-box {
+            border: 1px solid black;
+            padding: 8px;
+            margin-bottom: 15px;
+        }
+
+        .ttd-table {
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .ttd-table td {
+            text-align: center;
+            vertical-align: bottom;
+            height: 100px;
+        }
+        
+        .footer {
+            margin-top: 15px;
+            font-size: 9px;
+            font-style: italic;
+            text-align: right;
+            color: #555;
         }
     </style>
 </head>
@@ -73,87 +123,113 @@
     <!-- HEADER -->
     <table class="header-table">
         <tr>
-            <!-- LOGO -->
             <td width="20%" class="center">
-                <!-- We can replace this with an actual logo if available, or text -->
-                <div style="font-weight: bold; margin-top: 15px; font-size: 18px;">UDINUS</div>
+                <img src="{{ public_path('image/logo.png') }}" alt="Logo UDINUS" style="max-width: 80px; height: auto;">
             </td>
-
-            <!-- JUDUL -->
             <td width="50%" class="center">
                 <div class="bold">LABORATORIUM KOMPUTER FIK UDINUS</div>
                 <div class="title">
-                    PERMINTAAN TINDAKAN PERBAIKAN DAN PENCEGAHAN
+                    FORM PERMINTAAN TINDAKAN PERBAIKAN DAN PENGAJUAN<br>
+                    (SOFTWARE DAN HARDWARE)
                 </div>
-                <div>(SOFTWARE DAN HARDWARE)</div>
             </td>
-
-            <!-- INFO KANAN -->
             <td width="30%">
                 Nomor: {{ $nomor }} <br>
                 Revisi: {{ $revisi }} <br>
                 Tanggal Berlaku: {{ $tanggal_berlaku }} <br>
-                Halaman: 1
+                Halaman: 1 dari 1
             </td>
         </tr>
     </table>
 
-    <br>
+    <!-- INFORMASI PENGAJUAN -->
+    <table class="info-table">
+        <tr>
+            <td width="50%">
+                <span class="label">Laboratorium</span>: {{ $lab }}<br>
+                <span class="label">Pelapor</span>: {{ $pelapor }}<br>
+                <span class="label">Tanggal Pengajuan</span>: {{ $tanggal }}
+            </td>
+            <td width="50%" style="vertical-align: top;">
+                <span class="label">Status</span>: Pending<br>
+                <span class="label">Prioritas</span>: Sedang
+            </td>
+        </tr>
+    </table>
 
-    <!-- INFO UTAMA -->
-    <div class="section">
-        <div><span class="label">Bentuk Ketidaksesuaian</span>: {{ $ketidaksesuaian }}</div>
-        <div><span class="label">Lokasi</span>: {{ $lab }}</div>
-        <div><span class="label">Tanggal Kejadian</span>: {{ $tanggal }}</div>
-        <div><span class="label">Tanggal Laporan</span>: {{ $tanggal }}</div>
-    </div>
-
-    <br>
-
-    <!-- URAIAN -->
-    <div class="section">
-        <b>Hasil / Uraian Pengamatan Ketidaksesuaian:</b>
-        <div class="box">
-            {!! nl2br(e($uraian)) !!}
-        </div>
-    </div>
-
-    <br>
+    <!-- TABEL KERUSAKAN -->
+    <div class="section-title">Daftar Kerusakan Inventaris:</div>
+    <table class="data-table">
+        <thead>
+            <tr>
+                <th width="5%">No</th>
+                <th width="15%">No PC</th>
+                <th width="20%">Kode PC</th>
+                <th width="30%">Komponen (Kondisi)</th>
+                <th width="30%">Keterangan Kerusakan</th>
+            </tr>
+        </thead>
+        <tbody>
+            @if(isset($tableData) && count($tableData) > 0)
+                @foreach($tableData as $index => $row)
+                <tr>
+                    <td class="center">{{ $index + 1 }}</td>
+                    <td class="center">{{ $row['no_pc'] }}</td>
+                    <td class="center">{{ $row['kode_pc'] }}</td>
+                    <td>{!! $row['komponen'] !!}</td>
+                    <td>{!! $row['keterangan'] !!}</td>
+                </tr>
+                @endforeach
+            @else
+                <tr>
+                    <td colspan="5" class="center">Tidak ada data kerusakan PC.</td>
+                </tr>
+            @endif
+        </tbody>
+    </table>
 
     <!-- TINDAKAN LANGSUNG -->
-    <div class="section">
-        <b>Tindakan Langsung:</b>
-        <div class="box">
-            {!! nl2br(e($tindakan_langsung)) !!}
-        </div>
+    <div class="section-title">Tindakan Langsung / Yang Diajukan:</div>
+    <div class="box">
+        {!! nl2br(e($tindakan_perbaikan)) !!}
     </div>
 
-    <br>
-
-    <!-- PERBAIKAN -->
-    <div class="section">
-        <b>Permintaan Tindakan Perbaikan dan Pencegahan:</b>
-        <div class="box">
-            {!! nl2br(e($tindakan_perbaikan)) !!}
-        </div>
+    <!-- BAGIAN VERIFIKATOR -->
+    <div class="verification-box">
+        <div class="section-title" style="margin-top: 0;">Permintaan Tindakan Perbaikan dan Pencegahan (Oleh Admin):</div>
+        <br><br><br>
+        <div style="border-top: 1px dashed black; margin: 10px 0;"></div>
+        
+        <div class="section-title">Verifikasi Hasil Tindakan:</div>
+        <div>[ &nbsp; ] Diterima &nbsp;&nbsp;&nbsp;&nbsp; [ &nbsp; ] Ditolak</div>
+        <br>
+        
+        <div class="section-title">Evaluasi & Efektifitas Hasil Tindakan:</div>
+        <br><br><br>
     </div>
 
-    <!-- TTD -->
-    <table class="ttd">
+    <!-- TANDA TANGAN -->
+    <table class="ttd-table">
         <tr>
-            <td>
-                Pelapor,<br><br><br><br>
-                ( {{ $pelapor }} )<br>
-                Jabatan: {{ $jabatan_pelapor }}
+            <td width="50%">
+                Pelapor,<br><br><br><br><br>
+                <b>( ........................................ )</b><br>
+                Bagian : {{ $lab }}<br>
+                Jabatan : {{ $jabatan_pelapor }}
             </td>
-
-            <td>
-                Disetujui,<br><br><br><br>
-                ( {{ $admin }} )<br>
-                Jabatan: {{ $jabatan_admin }}
+            <td width="50%">
+                Disetujui,<br><br><br><br><br>
+                <b>( ........................................ )</b><br>
+                Bagian : ........................................<br>
+                Jabatan : ........................................
             </td>
         </tr>
     </table>
+
+    <!-- FOOTER -->
+    <div class="footer">
+        Dokumen dihasilkan otomatis oleh Sistem SIOPAL.
+    </div>
 
 </div>
 
