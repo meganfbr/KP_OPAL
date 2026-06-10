@@ -17,13 +17,13 @@ use App\Models\RAM;
 use App\Models\User;
 use App\Models\VGA;
 use App\Services\HardwareUsageCounter;
+use App\Services\InventoryPcIdService;
 use Filament\Forms\Components\Grid;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Infolists\Components\RepeatableEntry;
-use Filament\Infolists\Components\Grid as InfoGrid;
 use Filament\Infolists\Components\Section as InfoSection;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Infolists\Infolist;
@@ -40,7 +40,6 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Illuminate\Support\Str;
 
 class PCInventoryResource extends Resource
 {
@@ -66,10 +65,15 @@ class PCInventoryResource extends Resource
     public static function canAccess(): bool
     {
         $user = auth()->user();
-        if (!$user) return false;
-        
-        if (static::canManageInventoryPc()) return true;
-        
+
+        if (! $user) {
+            return false;
+        }
+
+        if (static::canManageInventoryPc()) {
+            return true;
+        }
+
         return $user->roles->pluck('name')->contains(fn ($n) => str_starts_with($n, 'Laboran_'));
     }
 
@@ -102,18 +106,22 @@ class PCInventoryResource extends Resource
             ->where('bulan', $period['bulan'])
             ->where('tahun', $period['tahun'])
             ->with(['asal', 'lokasi', 'petugas', 'pcDetail', 'pcComponents']);
-            
+
         $user = auth()->user();
-        if ($user && !static::canManageInventoryPc()) {
+
+        if ($user && ! static::canManageInventoryPc()) {
             $laboranRoles = $user->roles->filter(fn ($r) => str_starts_with($r->name, 'Laboran_'));
+
             $authorizedLabNames = [];
+
             foreach ($laboranRoles as $role) {
                 $labSlug = str_replace('Laboran_', '', $role->name);
                 $authorizedLabNames[] = 'LAB ' . strtoupper($labSlug);
             }
-            
-            $labIds = \App\Models\Laboratorium::whereIn('ruang', $authorizedLabNames)->pluck('id')->toArray();
-            if (!empty($labIds)) {
+
+            $labIds = Laboratorium::whereIn('ruang', $authorizedLabNames)->pluck('id')->toArray();
+
+            if (! empty($labIds)) {
                 $query->whereIn('lokasi_id', $labIds);
             } else {
                 $query->whereRaw('1 = 0');
@@ -131,9 +139,9 @@ class PCInventoryResource extends Resource
                 ->schema([
                     TextInput::make('kode_unique')
                         ->label('Kode Unique')
-                        ->default(fn (): string => static::generateKodeUnique())
-                        ->required()
-                        ->maxLength(255),
+                        ->nullable()
+                        ->maxLength(50)
+                        ->placeholder('Boleh kosong / contoh: LAB-A-01'),
 
                     Select::make('pc_detail.posisi')
                         ->label('Posisi')
@@ -159,6 +167,12 @@ class PCInventoryResource extends Resource
     {
         return $table
             ->columns([
+                TextColumn::make('pc_id')
+                    ->label('ID')
+                    ->formatStateUsing(fn ($state): string => InventoryPcIdService::format($state ? (int) $state : null))
+                    ->sortable()
+                    ->searchable(),
+
                 TextColumn::make('no_pc')
                     ->label('No PC')
                     ->searchable()
@@ -173,6 +187,7 @@ class PCInventoryResource extends Resource
 
                 TextColumn::make('kode_unique')
                     ->label('Kode Unique')
+                    ->placeholder('-')
                     ->searchable()
                     ->sortable(),
 
@@ -211,6 +226,9 @@ class PCInventoryResource extends Resource
                     ->before(function (Inventory $record): void {
                         $record->pcComponents()->delete();
                         $record->pcDetail()->delete();
+                    })
+                    ->after(function (Inventory $record): void {
+                        InventoryPcIdService::resequence((int) $record->bulan, (int) $record->tahun);
                     }),
             ])
             ->bulkActions([
@@ -253,70 +271,85 @@ class PCInventoryResource extends Resource
                                 $record->pcComponents()->delete();
                                 $record->pcDetail()->delete();
                             });
+                        })
+                        ->after(function ($records): void {
+                            $periods = $records
+                                ->map(fn (Inventory $record): string => $record->bulan . '-' . $record->tahun)
+                                ->unique();
+
+                            foreach ($periods as $period) {
+                                [$bulan, $tahun] = explode('-', $period);
+
+                                InventoryPcIdService::resequence((int) $bulan, (int) $tahun);
+                            }
                         }),
                 ]),
             ]);
     }
 
-public static function infolist(Infolist $infolist): Infolist
-{
-    return $infolist->schema([
-        InfoSection::make('Informasi Detail')
-            ->schema([
-                TextEntry::make('no_pc')
-                    ->label('No PC')
-                    ->placeholder('-'),
+    public static function infolist(Infolist $infolist): Infolist
+    {
+        return $infolist->schema([
+            InfoSection::make('Informasi Detail')
+                ->schema([
+                    TextEntry::make('pc_id')
+                        ->label('ID')
+                        ->formatStateUsing(fn ($state): string => InventoryPcIdService::format($state ? (int) $state : null)),
 
-                TextEntry::make('kode_unique')
-                    ->label('Kode Unique')
-                    ->placeholder('-'),
+                    TextEntry::make('no_pc')
+                        ->label('No PC')
+                        ->placeholder('-'),
 
-                TextEntry::make('lokasi.ruang')
-                    ->label('Lokasi Terkini')
-                    ->placeholder('-'),
+                    TextEntry::make('kode_unique')
+                        ->label('Kode Unique')
+                        ->placeholder('-'),
 
-                TextEntry::make('asal.ruang')
-                    ->label('Asal')
-                    ->placeholder('-'),
+                    TextEntry::make('lokasi.ruang')
+                        ->label('Lokasi Terkini')
+                        ->placeholder('-'),
 
-                TextEntry::make('petugas.name')
-                    ->label('Petugas')
-                    ->placeholder('-'),
+                    TextEntry::make('asal.ruang')
+                        ->label('Asal')
+                        ->placeholder('-'),
 
-                TextEntry::make('pcDetail.posisi')
-                    ->label('Posisi')
-                    ->placeholder('-'),
-            ])
-            ->columns(2),
+                    TextEntry::make('petugas.name')
+                        ->label('Petugas')
+                        ->placeholder('-'),
 
-        InfoSection::make('Spesifikasi Komponen')
-            ->description('Daftar komponen yang terpasang pada PC')
-            ->schema([
-                RepeatableEntry::make('pcComponents')
-                    ->label('')
-                    ->schema([
-                        TextEntry::make('komponen')
-                            ->label('Komponen')
-                            ->weight('bold'),
+                    TextEntry::make('pcDetail.posisi')
+                        ->label('Posisi')
+                        ->placeholder('-'),
+                ])
+                ->columns(2),
 
-                        TextEntry::make('detail_merk')
-                            ->label('Detail')
-                            ->placeholder('-'),
+            InfoSection::make('Spesifikasi Komponen')
+                ->description('Daftar komponen yang terpasang pada PC')
+                ->schema([
+                    RepeatableEntry::make('pcComponents')
+                        ->label('')
+                        ->schema([
+                            TextEntry::make('komponen')
+                                ->label('Komponen')
+                                ->weight('bold'),
 
-                        TextEntry::make('kondisi')
-                            ->label('Kondisi')
-                            ->badge()
-                            ->placeholder('-'),
+                            TextEntry::make('detail_merk')
+                                ->label('Detail')
+                                ->placeholder('-'),
 
-                        TextEntry::make('keterangan')
-                            ->label('Keterangan')
-                            ->placeholder('-'),
-                    ])
-                    ->columns(4)
-                    ->contained(false),
-            ]),
-    ]);
-}
+                            TextEntry::make('kondisi')
+                                ->label('Kondisi')
+                                ->badge()
+                                ->placeholder('-'),
+
+                            TextEntry::make('keterangan')
+                                ->label('Keterangan')
+                                ->placeholder('-'),
+                        ])
+                        ->columns(4)
+                        ->contained(false),
+                ]),
+        ]);
+    }
 
     public static function getPages(): array
     {
@@ -370,20 +403,8 @@ public static function infolist(Infolist $infolist): Infolist
             ['komponen' => 'VGA', 'urutan' => 4, 'vga_id' => $components['vga_id'] ?? null, 'kondisi' => $components['vga_kondisi'] ?? 'Baik', 'keterangan' => $components['vga_keterangan'] ?? null],
             ['komponen' => 'RAM', 'urutan' => 5, 'ram_id' => $components['ram_id'] ?? null, 'kondisi' => $components['ram_kondisi'] ?? 'Baik', 'keterangan' => $components['ram_keterangan'] ?? null],
             ['komponen' => 'DVD', 'urutan' => 6, 'dvd_id' => $components['dvd_id'] ?? null, 'kondisi' => $components['dvd_kondisi'] ?? 'Baik', 'keterangan' => $components['dvd_keterangan'] ?? null],
-            [
-                'komponen' => 'Keyboard',
-                'urutan' => 7,
-                'keyboard_id' => $components['keyboard_id'] ?? null,
-                'kondisi' => $components['keyboard_kondisi'] ?? 'Baik',
-                'keterangan' => $components['keyboard_keterangan'] ?? null,
-            ],
-            [
-                'komponen' => 'Mouse',
-                'urutan' => 8,
-                'mouse_id' => $components['mouse_id'] ?? null,
-                'kondisi' => $components['mouse_kondisi'] ?? 'Baik',
-                'keterangan' => $components['mouse_keterangan'] ?? null,
-            ],
+            ['komponen' => 'Keyboard', 'urutan' => 7, 'keyboard_id' => $components['keyboard_id'] ?? null, 'kondisi' => $components['keyboard_kondisi'] ?? 'Baik', 'keterangan' => $components['keyboard_keterangan'] ?? null],
+            ['komponen' => 'Mouse', 'urutan' => 8, 'mouse_id' => $components['mouse_id'] ?? null, 'kondisi' => $components['mouse_kondisi'] ?? 'Baik', 'keterangan' => $components['mouse_keterangan'] ?? null],
             ['komponen' => 'Monitor', 'urutan' => 9, 'monitor_id' => $components['monitor_id'] ?? null, 'kondisi' => $components['monitor_kondisi'] ?? 'Baik', 'keterangan' => $components['monitor_keterangan'] ?? null],
         ];
 
@@ -473,15 +494,6 @@ public static function infolist(Infolist $infolist): Infolist
             return 'GD';
         }
 
-        /*
-        * Ambil huruf lab dari bagian paling akhir.
-        * Contoh:
-        * LAB D2A -> A
-        * LAB D2B -> B
-        * LAB D2C -> C
-        * LAB A   -> A
-        * LAB B   -> B
-        */
         if (preg_match('/([A-N])$/', $ruang, $matches)) {
             return $matches[1];
         }
@@ -520,19 +532,6 @@ public static function infolist(Infolist $infolist): Infolist
             ?->id;
     }
 
-    protected static function generateKodeUnique(): string
-    {
-        $lastKode = Inventory::query()
-            ->whereNotNull('kode_unique')
-            ->where('kode_unique', 'REGEXP', '^[0-9]+$')
-            ->orderByRaw('CAST(kode_unique AS UNSIGNED) DESC')
-            ->value('kode_unique');
-
-        $nextNumber = $lastKode ? ((int) $lastKode + 1) : 1;
-
-        return str_pad((string) $nextNumber, 3, '0', STR_PAD_LEFT);
-    }
-
     protected static function conditionOptions(): array
     {
         return [
@@ -546,30 +545,108 @@ public static function infolist(Infolist $infolist): Infolist
     protected static function componentFields(): array
     {
         return [
-            Select::make('components.motherboard_id')->label('Motherboard')->options(fn () => Motherboard::query()->orderBy('merk')->pluck('merk', 'id'))->searchable()->preload()->required(),
-            Select::make('components.motherboard_kondisi')->label('Kondisi')->options(static::conditionOptions())->default('Baik')->required(),
-            TextInput::make('components.motherboard_keterangan')->label('Keterangan')->maxLength(255),
+            Select::make('components.motherboard_id')
+                ->label('Motherboard')
+                ->options(fn () => Motherboard::query()->orderBy('merk')->pluck('merk', 'id'))
+                ->searchable()
+                ->preload()
+                ->required(),
 
-            Select::make('components.processor_id')->label('Processor')->options(fn () => Processor::query()->orderBy('merk')->pluck('merk', 'id'))->searchable()->preload()->required(),
-            Select::make('components.processor_kondisi')->label('Kondisi')->options(static::conditionOptions())->default('Baik')->required(),
-            TextInput::make('components.processor_keterangan')->label('Keterangan')->maxLength(255),
+            Select::make('components.motherboard_kondisi')
+                ->label('Kondisi')
+                ->options(static::conditionOptions())
+                ->default('Baik')
+                ->required(),
 
-            Select::make('components.penyimpanan_id')->label('Hardisk')->options(fn () => Penyimpanan::query()->orderBy('merk')->pluck('merk', 'id'))->searchable()->preload()->required(),
-            Select::make('components.penyimpanan_kondisi')->label('Kondisi')->options(static::conditionOptions())->default('Baik')->required(),
-            TextInput::make('components.penyimpanan_keterangan')->label('Keterangan')->maxLength(255),
+            TextInput::make('components.motherboard_keterangan')
+                ->label('Keterangan')
+                ->maxLength(255),
 
-            Select::make('components.vga_id')->label('VGA')->options(fn () => VGA::query()->orderBy('merk')->pluck('merk', 'id'))->searchable()->preload()->required(),
-            Select::make('components.vga_kondisi')->label('Kondisi')->options(static::conditionOptions())->default('Baik')->required(),
-            TextInput::make('components.vga_keterangan')->label('Keterangan')->maxLength(255),
+            Select::make('components.processor_id')
+                ->label('Processor')
+                ->options(fn () => Processor::query()->orderBy('merk')->pluck('merk', 'id'))
+                ->searchable()
+                ->preload()
+                ->required(),
 
-            Select::make('components.ram_id')->label('RAM')->options(fn () => RAM::query()->orderBy('merk')->pluck('merk', 'id'))->searchable()->preload()->required(),
-            Select::make('components.ram_kondisi')->label('Kondisi')->options(static::conditionOptions())->default('Baik')->required(),
-            TextInput::make('components.ram_keterangan')->label('Keterangan')->maxLength(255),
+            Select::make('components.processor_kondisi')
+                ->label('Kondisi')
+                ->options(static::conditionOptions())
+                ->default('Baik')
+                ->required(),
 
-            Select::make('components.dvd_id')->label('DVD')->options(fn () => DVD::query()->orderBy('merk')->pluck('merk', 'id'))->searchable()->preload()->required(),
-            Select::make('components.dvd_kondisi')->label('Kondisi')->options(static::conditionOptions())->default('Baik')->required(),
-            TextInput::make('components.dvd_keterangan')->label('Keterangan')->maxLength(255),
-            
+            TextInput::make('components.processor_keterangan')
+                ->label('Keterangan')
+                ->maxLength(255),
+
+            Select::make('components.penyimpanan_id')
+                ->label('Hardisk')
+                ->options(fn () => Penyimpanan::query()->orderBy('merk')->pluck('merk', 'id'))
+                ->searchable()
+                ->preload()
+                ->required(),
+
+            Select::make('components.penyimpanan_kondisi')
+                ->label('Kondisi')
+                ->options(static::conditionOptions())
+                ->default('Baik')
+                ->required(),
+
+            TextInput::make('components.penyimpanan_keterangan')
+                ->label('Keterangan')
+                ->maxLength(255),
+
+            Select::make('components.vga_id')
+                ->label('VGA')
+                ->options(fn () => VGA::query()->orderBy('merk')->pluck('merk', 'id'))
+                ->searchable()
+                ->preload()
+                ->required(),
+
+            Select::make('components.vga_kondisi')
+                ->label('Kondisi')
+                ->options(static::conditionOptions())
+                ->default('Baik')
+                ->required(),
+
+            TextInput::make('components.vga_keterangan')
+                ->label('Keterangan')
+                ->maxLength(255),
+
+            Select::make('components.ram_id')
+                ->label('RAM')
+                ->options(fn () => RAM::query()->orderBy('merk')->pluck('merk', 'id'))
+                ->searchable()
+                ->preload()
+                ->required(),
+
+            Select::make('components.ram_kondisi')
+                ->label('Kondisi')
+                ->options(static::conditionOptions())
+                ->default('Baik')
+                ->required(),
+
+            TextInput::make('components.ram_keterangan')
+                ->label('Keterangan')
+                ->maxLength(255),
+
+            Select::make('components.dvd_id')
+                ->label('DVD')
+                ->options(fn () => DVD::query()->orderBy('merk')->pluck('merk', 'id'))
+                ->searchable()
+                ->preload()
+                ->required(),
+
+            Select::make('components.dvd_kondisi')
+                ->label('Kondisi')
+                ->options(static::conditionOptions())
+                ->default('Baik')
+                ->required(),
+
+            TextInput::make('components.dvd_keterangan')
+                ->label('Keterangan')
+                ->maxLength(255),
+
             Select::make('components.keyboard_id')
                 ->label('Keyboard')
                 ->options(fn () => Keyboard::query()->orderBy('merk')->pluck('merk', 'id'))
@@ -603,10 +680,23 @@ public static function infolist(Infolist $infolist): Infolist
             TextInput::make('components.mouse_keterangan')
                 ->label('Keterangan Mouse')
                 ->maxLength(255),
-                
-            Select::make('components.monitor_id')->label('Monitor')->options(fn () => Monitor::query()->orderBy('merk')->pluck('merk', 'id'))->searchable()->preload()->required(),
-            Select::make('components.monitor_kondisi')->label('Kondisi')->options(static::conditionOptions())->default('Baik')->required(),
-            TextInput::make('components.monitor_keterangan')->label('Keterangan')->maxLength(255),
+
+            Select::make('components.monitor_id')
+                ->label('Monitor')
+                ->options(fn () => Monitor::query()->orderBy('merk')->pluck('merk', 'id'))
+                ->searchable()
+                ->preload()
+                ->required(),
+
+            Select::make('components.monitor_kondisi')
+                ->label('Kondisi')
+                ->options(static::conditionOptions())
+                ->default('Baik')
+                ->required(),
+
+            TextInput::make('components.monitor_keterangan')
+                ->label('Keterangan')
+                ->maxLength(255),
         ];
     }
 }

@@ -11,29 +11,34 @@ use App\Models\Penyimpanan;
 use App\Models\Processor;
 use App\Models\RAM;
 use App\Models\VGA;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
 
-class MasterHardwareMei2026Seeder extends Seeder
+class HardwareMei2026CleanSeeder extends Seeder
 {
+    protected int $bulan = 5;
+
+    protected int $tahun = 2026;
+
     public function run(): void
     {
-        $bulan = 5;
-        $tahun = 2026;
+        DB::transaction(function () {
+            $this->seedMotherboards();
+            $this->seedProcessors();
+            $this->seedPenyimpanans();
+            $this->seedVgas();
+            $this->seedRams();
+            $this->seedDvds();
+            $this->seedKeyboards();
+            $this->seedMice();
+            $this->seedMonitors();
+        });
 
-        $this->seedMotherboards($bulan, $tahun);
-        $this->seedProcessors($bulan, $tahun);
-        $this->seedPenyimpanans($bulan, $tahun);
-        $this->seedVgas($bulan, $tahun);
-        $this->seedRams($bulan, $tahun);
-        $this->seedDvds($bulan, $tahun);
-        $this->seedKeyboards($bulan, $tahun);
-        $this->seedMice($bulan, $tahun);
-        $this->seedMonitors($bulan, $tahun);
-
-        $this->command?->info('✅ Master data hardware Mei 2026 berhasil diisi.');
+        $this->command?->info('Data hardware Mei 2026 berhasil dibuat dan data dobel sudah dirapikan.');
     }
 
-    protected function seedMotherboards(int $bulan, int $tahun): void
+    protected function seedMotherboards(): void
     {
         $rows = [
             ['merk' => 'ASUS', 'tipe' => 'H61M-K'],
@@ -43,21 +48,24 @@ class MasterHardwareMei2026Seeder extends Seeder
         ];
 
         foreach ($rows as $row) {
-            Motherboard::updateOrCreate(
-                [
+            $this->upsertAndClean(
+                model: Motherboard::class,
+                table: 'motherboards',
+                match: [
                     'merk' => $row['merk'],
                     'tipe' => $row['tipe'],
-                    'bulan' => $bulan,
-                    'tahun' => $tahun,
+                    'bulan' => $this->bulan,
+                    'tahun' => $this->tahun,
                 ],
-                [
+                update: [
                     'stok' => 0,
-                ]
+                ],
+                componentFk: 'motherboard_id'
             );
         }
     }
 
-    protected function seedProcessors(int $bulan, int $tahun): void
+    protected function seedProcessors(): void
     {
         $rows = [
             ['merk' => 'Intel', 'tipe' => 'Core i3-4130'],
@@ -67,21 +75,24 @@ class MasterHardwareMei2026Seeder extends Seeder
         ];
 
         foreach ($rows as $row) {
-            Processor::updateOrCreate(
-                [
+            $this->upsertAndClean(
+                model: Processor::class,
+                table: 'processors',
+                match: [
                     'merk' => $row['merk'],
                     'tipe' => $row['tipe'],
-                    'bulan' => $bulan,
-                    'tahun' => $tahun,
+                    'bulan' => $this->bulan,
+                    'tahun' => $this->tahun,
                 ],
-                [
+                update: [
                     'stok' => 0,
-                ]
+                ],
+                componentFk: 'processor_id'
             );
         }
     }
 
-    protected function seedPenyimpanans(int $bulan, int $tahun): void
+    protected function seedPenyimpanans(): void
     {
         $rows = [
             ['merk' => 'Seagate', 'tipe' => 'HDD', 'kapasitas' => 500, 'spesifikasi' => 'SATA 3.5 Inch'],
@@ -91,23 +102,26 @@ class MasterHardwareMei2026Seeder extends Seeder
         ];
 
         foreach ($rows as $row) {
-            Penyimpanan::updateOrCreate(
-                [
+            $this->upsertAndClean(
+                model: Penyimpanan::class,
+                table: 'penyimpanans',
+                match: [
                     'merk' => $row['merk'],
                     'tipe' => $row['tipe'],
                     'kapasitas' => $row['kapasitas'],
-                    'bulan' => $bulan,
-                    'tahun' => $tahun,
+                    'bulan' => $this->bulan,
+                    'tahun' => $this->tahun,
                 ],
-                [
+                update: [
                     'spesifikasi' => $row['spesifikasi'],
                     'stok' => 0,
-                ]
+                ],
+                componentFk: 'penyimpanan_id'
             );
         }
     }
 
-    protected function seedVgas(int $bulan, int $tahun): void
+    protected function seedVgas(): void
     {
         $rows = [
             ['merk' => 'NVIDIA', 'tipe' => 'GeForce GT 730', 'kapasitas' => 2, 'spesifikasi' => 'DDR3'],
@@ -117,23 +131,26 @@ class MasterHardwareMei2026Seeder extends Seeder
         ];
 
         foreach ($rows as $row) {
-            VGA::updateOrCreate(
-                [
+            $this->upsertAndClean(
+                model: VGA::class,
+                table: 'v_g_a_s',
+                match: [
                     'merk' => $row['merk'],
                     'tipe' => $row['tipe'],
                     'kapasitas' => $row['kapasitas'],
-                    'bulan' => $bulan,
-                    'tahun' => $tahun,
+                    'bulan' => $this->bulan,
+                    'tahun' => $this->tahun,
                 ],
-                [
+                update: [
                     'spesifikasi' => $row['spesifikasi'],
                     'stok' => 0,
-                ]
+                ],
+                componentFk: 'vga_id'
             );
         }
     }
 
-    protected function seedRams(int $bulan, int $tahun): void
+    protected function seedRams(): void
     {
         $rows = [
             ['merk' => 'V-Gen', 'tipe' => 'DDR3', 'kapasitas' => 4],
@@ -143,22 +160,25 @@ class MasterHardwareMei2026Seeder extends Seeder
         ];
 
         foreach ($rows as $row) {
-            RAM::updateOrCreate(
-                [
+            $this->upsertAndClean(
+                model: RAM::class,
+                table: 'r_a_m_s',
+                match: [
                     'merk' => $row['merk'],
                     'tipe' => $row['tipe'],
                     'kapasitas' => $row['kapasitas'],
-                    'bulan' => $bulan,
-                    'tahun' => $tahun,
+                    'bulan' => $this->bulan,
+                    'tahun' => $this->tahun,
                 ],
-                [
+                update: [
                     'stok' => 0,
-                ]
+                ],
+                componentFk: 'ram_id'
             );
         }
     }
 
-    protected function seedDvds(int $bulan, int $tahun): void
+    protected function seedDvds(): void
     {
         $rows = [
             ['merk' => 'ASUS', 'dvd' => 'DVD-RW', 'spesifikasi' => 'Internal SATA'],
@@ -168,22 +188,25 @@ class MasterHardwareMei2026Seeder extends Seeder
         ];
 
         foreach ($rows as $row) {
-            DVD::updateOrCreate(
-                [
+            $this->upsertAndClean(
+                model: DVD::class,
+                table: 'd_v_d_s',
+                match: [
                     'merk' => $row['merk'],
                     'dvd' => $row['dvd'],
-                    'bulan' => $bulan,
-                    'tahun' => $tahun,
+                    'bulan' => $this->bulan,
+                    'tahun' => $this->tahun,
                 ],
-                [
+                update: [
                     'spesifikasi' => $row['spesifikasi'],
                     'stok' => 0,
-                ]
+                ],
+                componentFk: 'dvd_id'
             );
         }
     }
 
-    protected function seedKeyboards(int $bulan, int $tahun): void
+    protected function seedKeyboards(): void
     {
         $rows = [
             ['merk' => 'Logitech', 'tipe' => 'K120'],
@@ -193,21 +216,24 @@ class MasterHardwareMei2026Seeder extends Seeder
         ];
 
         foreach ($rows as $row) {
-            Keyboard::updateOrCreate(
-                [
+            $this->upsertAndClean(
+                model: Keyboard::class,
+                table: 'keyboards',
+                match: [
                     'merk' => $row['merk'],
                     'tipe' => $row['tipe'],
-                    'bulan' => $bulan,
-                    'tahun' => $tahun,
+                    'bulan' => $this->bulan,
+                    'tahun' => $this->tahun,
                 ],
-                [
+                update: [
                     'stok' => 0,
-                ]
+                ],
+                componentFk: 'keyboard_id'
             );
         }
     }
 
-    protected function seedMice(int $bulan, int $tahun): void
+    protected function seedMice(): void
     {
         $rows = [
             ['merk' => 'Logitech', 'tipe' => 'B100'],
@@ -217,21 +243,24 @@ class MasterHardwareMei2026Seeder extends Seeder
         ];
 
         foreach ($rows as $row) {
-            Mouse::updateOrCreate(
-                [
+            $this->upsertAndClean(
+                model: Mouse::class,
+                table: 'mice',
+                match: [
                     'merk' => $row['merk'],
                     'tipe' => $row['tipe'],
-                    'bulan' => $bulan,
-                    'tahun' => $tahun,
+                    'bulan' => $this->bulan,
+                    'tahun' => $this->tahun,
                 ],
-                [
+                update: [
                     'stok' => 0,
-                ]
+                ],
+                componentFk: 'mouse_id'
             );
         }
     }
 
-    protected function seedMonitors(int $bulan, int $tahun): void
+    protected function seedMonitors(): void
     {
         $rows = [
             ['merk' => 'Acer', 'nama' => 'V206HQL', 'resolusi' => '1366x768', 'ukuran' => '20', 'spesifikasi' => 'LED Monitor'],
@@ -241,20 +270,60 @@ class MasterHardwareMei2026Seeder extends Seeder
         ];
 
         foreach ($rows as $row) {
-            Monitor::updateOrCreate(
-                [
+            $this->upsertAndClean(
+                model: Monitor::class,
+                table: 'monitors',
+                match: [
                     'merk' => $row['merk'],
                     'nama' => $row['nama'],
                     'ukuran' => $row['ukuran'],
-                    'bulan' => $bulan,
-                    'tahun' => $tahun,
+                    'bulan' => $this->bulan,
+                    'tahun' => $this->tahun,
                 ],
-                [
+                update: [
                     'resolusi' => $row['resolusi'],
                     'spesifikasi' => $row['spesifikasi'],
                     'stok' => 0,
-                ]
+                ],
+                componentFk: 'monitor_id'
             );
         }
+    }
+
+    protected function upsertAndClean(string $model, string $table, array $match, array $update, string $componentFk): Model
+    {
+        /** @var Model|null $main */
+        $main = $model::query()
+            ->where($match)
+            ->orderBy('id')
+            ->first();
+
+        if ($main) {
+            $main->fill($update);
+            $main->save();
+        } else {
+            /** @var Model $main */
+            $main = $model::create(array_merge($match, $update));
+        }
+
+        $duplicates = DB::table($table)
+            ->where($match)
+            ->where('id', '!=', $main->getKey())
+            ->orderBy('id')
+            ->pluck('id');
+
+        if ($duplicates->isNotEmpty()) {
+            DB::table('inventory_pc_components')
+                ->whereIn($componentFk, $duplicates)
+                ->update([
+                    $componentFk => $main->getKey(),
+                ]);
+
+            DB::table($table)
+                ->whereIn('id', $duplicates)
+                ->delete();
+        }
+
+        return $main;
     }
 }

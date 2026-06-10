@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use Illuminate\Support\Str;
 
 class Inventory extends Model
 {
@@ -64,34 +63,11 @@ class Inventory extends Model
         }
     }
 
-    protected static function generateKodeUnique(): string
-    {
-        $lastKode = self::query()
-            ->whereNotNull('kode_unique')
-            ->where('kode_unique', 'REGEXP', '^[0-9]+$')
-            ->orderByRaw('CAST(kode_unique AS UNSIGNED) DESC')
-            ->value('kode_unique');
-
-        $nextNumber = $lastKode ? ((int) $lastKode + 1) : 1;
-
-        return str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
-    }
-
     protected static function booted(): void
     {
         static::creating(function (Inventory $inventory) {
-            if (empty($inventory->kode_unique)) {
-                $inventory->kode_unique = self::generateKodeUnique();
-            }
-
             if (empty($inventory->status)) {
                 $inventory->status = 'Aktif';
-            }
-        });
-
-        static::updating(function (Inventory $inventory) {
-            if ($inventory->isDirty('kode_unique') && $inventory->getOriginal('kode_unique')) {
-                $inventory->kode_unique = $inventory->getOriginal('kode_unique');
             }
         });
 

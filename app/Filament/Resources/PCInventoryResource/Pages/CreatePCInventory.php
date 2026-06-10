@@ -5,6 +5,7 @@ namespace App\Filament\Resources\PCInventoryResource\Pages;
 use App\Filament\Resources\PCInventoryResource;
 use Filament\Resources\Pages\CreateRecord;
 use Illuminate\Database\Eloquent\Model;
+use App\Services\InventoryPcIdService;
 
 class CreatePCInventory extends CreateRecord
 {
@@ -20,6 +21,7 @@ class CreatePCInventory extends CreateRecord
          */
         $data['bulan'] = $period['bulan'];
         $data['tahun'] = $period['tahun'];
+        $data['pc_id'] = InventoryPcIdService::generateNextId($period['bulan'], $period['tahun']);
 
         /*
          * PC baru belum diplot ke mana pun.
