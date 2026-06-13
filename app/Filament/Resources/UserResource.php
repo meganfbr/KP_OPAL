@@ -127,16 +127,26 @@ class UserResource extends Resource
                                 : null)
                     ),
                 Tables\Columns\TextColumn::make('is_active')
-                    ->label('Status')
+                    ->label('Status Akun')
                     ->badge()
                     ->formatStateUsing(fn (bool $state): string => $state ? 'Aktif' : 'Nonaktif')
                     ->color(fn (bool $state): string => $state ? 'success' : 'danger')
-                    ->icon(fn (bool $state): string => $state ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle'),
+                    ->icon(fn (bool $state): string => $state ? 'heroicon-o-check-circle' : 'heroicon-o-x-circle')
+                    ->searchable(query: function (Builder $query, string $search): Builder {
+                        $term = strtolower(trim($search));
+                        if ($term === 'aktif') {
+                            return $query->where('is_active', true);
+                        } elseif ($term === 'nonaktif') {
+                            return $query->where('is_active', false);
+                        }
+                        return $query;
+                    }),
             ])
             ->filters([
                 // Filter Status Aktif/Nonaktif
                 SelectFilter::make('status')
-                    ->label('Status')
+                    ->label('Status Akun')
+                    ->searchable()
                     ->options([
                         'aktif' => 'Aktif',
                         'nonaktif' => 'Nonaktif',
@@ -154,8 +164,8 @@ class UserResource extends Resource
                     })
                     ->indicateUsing(function (array $data): ?string {
                         return match ($data['value'] ?? null) {
-                            'aktif' => 'Status: Aktif',
-                            'nonaktif' => 'Status: Nonaktif',
+                            'aktif' => 'Status Akun: Aktif',
+                            'nonaktif' => 'Status Akun: Nonaktif',
                             default => null,
                         };
                     }),
@@ -422,7 +432,7 @@ class UserResource extends Resource
                                                 : null
                                         ),
                                     Infolists\Components\TextEntry::make('is_active')
-                                        ->label('Status')
+                                        ->label('Status Akun')
                                         ->badge()
                                         ->formatStateUsing(fn (bool $state): string => $state ? 'Aktif' : 'Nonaktif')
                                         ->color(fn (bool $state): string => $state ? 'success' : 'danger'),

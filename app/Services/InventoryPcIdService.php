@@ -9,13 +9,23 @@ class InventoryPcIdService
 {
     public static function generateNextId(int $bulan, int $tahun): int
     {
-        $max = Inventory::query()
+        $inventories = Inventory::query()
             ->whereNull('inventoriable_type')
             ->where('bulan', $bulan)
             ->where('tahun', $tahun)
-            ->max('pc_id');
+            ->get(['kode_inventaris']);
 
-        return ((int) $max) + 1;
+        $max = 0;
+        foreach ($inventories as $inventory) {
+            if (!empty($inventory->kode_inventaris) && is_numeric($inventory->kode_inventaris)) {
+                $num = (int) $inventory->kode_inventaris;
+                if ($num > $max) {
+                    $max = $num;
+                }
+            }
+        }
+
+        return $max + 1;
     }
 
     public static function resequence(int $bulan, int $tahun): void
@@ -25,7 +35,6 @@ class InventoryPcIdService
                 ->whereNull('inventoriable_type')
                 ->where('bulan', $bulan)
                 ->where('tahun', $tahun)
-                ->orderBy('pc_id')
                 ->orderBy('id')
                 ->get();
 
@@ -33,7 +42,7 @@ class InventoryPcIdService
 
             foreach ($inventories as $inventory) {
                 $inventory->updateQuietly([
-                    'pc_id' => $number,
+                    'kode_inventaris' => str_pad((string) $number, 3, '0', STR_PAD_LEFT),
                 ]);
 
                 $number++;
@@ -41,10 +50,10 @@ class InventoryPcIdService
         });
     }
 
-    public static function format(?int $pcId): string
+    public static function format(?int $id): string
     {
-        return $pcId
-            ? str_pad((string) $pcId, 3, '0', STR_PAD_LEFT)
+        return $id
+            ? str_pad((string) $id, 3, '0', STR_PAD_LEFT)
             : '-';
     }
 }

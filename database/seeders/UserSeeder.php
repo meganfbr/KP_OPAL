@@ -24,7 +24,7 @@ class UserSeeder extends Seeder
             'guard_name' => 'web',
         ]);
 
-        $superAdmin = User::updateOrCreate(
+        $superAdmin = User::firstOrCreate(
             ['email' => 'superadmin@mail.com'],
             [
                 'name' => 'Super Administrator',
@@ -43,30 +43,6 @@ class UserSeeder extends Seeder
             'D2H', 'D2I', 'D2J', 'D2K', 'D3L', 'D3M', 'D3N'
         ];
 
-        $shifts = ['pagi', 'siang'];
-
-        $userRows = [
-            ['Super Administrator', 'superadmin@mail.com', 'A11.2022.2022', 'super_admin', 'superadmin'],
-        ];
-
-        // Map beberapa lab ke tanggal_keluar contoh untuk demo
-        $kontrakMap = [
-            'D2A' => '2026-12-31', // Aktif sampai akhir tahun
-            'D2B' => '2026-12-31',
-            'D2C' => '2026-06-30', // Berakhir bulan Juni 2026 (bulan ini)
-            'D2D' => '2026-06-15', // Berakhir bulan Juni 2026 (bulan ini)
-            'D2E' => '2026-08-31', // Berakhir tahun ini
-            'D2F' => '2026-09-30', // Berakhir tahun ini
-            'D2G' => null,         // Tanpa tanggal keluar
-            'D2H' => null,
-            'D2I' => '2027-06-30', // Kontrak sampai tahun depan
-            'D2J' => '2027-06-30',
-            'D2K' => '2026-12-31',
-            'D3L' => '2026-12-31',
-            'D3M' => '2026-06-30', // Berakhir bulan ini
-            'D3N' => null,
-        ];
-
         foreach ($labs as $labSlug) {
             $labRole = 'Laboran_' . strtoupper($labSlug);
 
@@ -75,52 +51,13 @@ class UserSeeder extends Seeder
                 'guard_name' => 'web',
             ]);
 
-            foreach ($shifts as $shift) {
-                $labSlugLower = strtolower($labSlug);
-                $email = "laboran_{$labSlugLower}_{$shift}@mail.com";
-                $passwordPlain = "lab-{$labSlugLower}-{$shift}";
-                $npp = "LAB{$labSlugLower}.{$shift}.2026";
-                $name = "Laboran Lab " . strtoupper($labSlug) . " " . ucfirst($shift);
-
-                $userData = [
-                    'name' => $name,
-                    'npp' => $npp,
-                    'no_phone' => '081234567890',
-                    'password' => Hash::make($passwordPlain),
-                    'tanggal_masuk' => '2026-01-01',
-                    'position' => 'Laboran',
-                ];
-
-                // Tambahkan tanggal_keluar jika ada di map
-                if (isset($kontrakMap[$labSlug])) {
-                    $userData['tanggal_keluar'] = $kontrakMap[$labSlug];
-                }
-
-                $user = User::updateOrCreate(
-                    ['email' => $email],
-                    $userData
-                );
-
-                $user->syncRoles([$labRole]);
-                $user->syncPermissions($this->getLabPermissions($labSlug));
-
-                $userRows[] = [
-                    $user->name,
-                    $email,
-                    $user->npp,
-                    $labRole,
-                    $passwordPlain,
-                ];
-            }
+            // Pastikan permission tetap ada agar terdaftar pada sistem
+            $this->getLabPermissions($labSlug);
         }
 
         app(PermissionRegistrar::class)->forgetCachedPermissions();
 
-        $this->command->info('Users seeded successfully!');
-        $this->command->table(
-            ['Name', 'Email', 'NPP', 'Role', 'Password'],
-            $userRows
-        );
+        $this->command->info('Roles and permissions for UserSeeder have been securely initialized. No dummy users were created.');
     }
 
     protected function getLabPermissions(string $labSlug): array

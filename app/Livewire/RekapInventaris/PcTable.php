@@ -89,6 +89,8 @@ class PcTable extends Component implements HasForms, HasTable
                         
                         $masterPcs = \App\Models\Inventory::whereNull('inventoriable_type')
                             ->where('lokasi_id', $labId)
+                            ->where('bulan', $this->bulan)
+                            ->where('tahun', $this->tahun)
                             ->whereNotNull('no_pc')
                             ->with('pcComponents')
                             ->get();
@@ -150,6 +152,21 @@ class PcTable extends Component implements HasForms, HasTable
                     ->label('No PC')
                     ->searchable()
                     ->sortable(),
+
+                TextColumn::make('kode_bium')
+                    ->label('Kode BIUM')
+                    ->state(function (RekapInventarisPc $record) {
+                        $labId = $this->laboratoriumId ?? $record->periode->laboratorium_id;
+                        $inv = \App\Models\Inventory::query()
+                            ->where('no_pc', $record->no_pc)
+                            ->where('lokasi_id', $labId)
+                            ->where('bulan', $this->bulan)
+                            ->where('tahun', $this->tahun)
+                            ->whereNull('inventoriable_type')
+                            ->first();
+
+                        return (!empty($inv) && !empty($inv->kode_unique)) ? $inv->kode_unique : '-';
+                    }),
 
                 TextColumn::make('periode.laboratorium.ruang')
                     ->label('Ruang Laboratorium')
@@ -218,6 +235,17 @@ class PcTable extends Component implements HasForms, HasTable
 
                         return [
                             'no_pc_preview' => $record->no_pc,
+                            'kode_bium_edit' => (function() use ($record) {
+                                $labId = $this->laboratoriumId ?? $record->periode->laboratorium_id;
+                                $inv = \App\Models\Inventory::query()
+                                    ->where('no_pc', $record->no_pc)
+                                    ->where('lokasi_id', $labId)
+                                    ->where('bulan', $this->bulan)
+                                    ->where('tahun', $this->tahun)
+                                    ->whereNull('inventoriable_type')
+                                    ->first();
+                                return $inv ? $inv->kode_unique : null;
+                            })(),
                             'lokasi' => $record->lokasi,
                             'kondisi' => $record->kondisi,
                             'spec_details' => $details,
@@ -227,6 +255,55 @@ class PcTable extends Component implements HasForms, HasTable
                     ->using(function (RekapInventarisPc $record, array $data) {
                         $periodeId = $this->periodeId;
                         $service = resolve(\App\Services\RekapInventarisSpecService::class);
+
+                        // Eksekusi sync parameter ke Master Inventaris PC
+                        $labId = $this->laboratoriumId ?? $record->periode->laboratorium_id;
+                        $inv = \App\Models\Inventory::query()
+                            ->where('no_pc', $record->no_pc)
+                            ->where('bulan', $this->bulan)
+                            ->where('tahun', $this->tahun)
+                            ->where(function ($query) use ($labId) {
+                                $query->where('lokasi_id', $labId)
+                                      ->orWhere('laboratorium_id', $labId);
+                            })
+                            ->whereNull('inventoriable_type')
+                            ->first();
+
+                        if ($inv) {
+                            if (!empty($data['kode_bium_edit'])) {
+                                $inv->updateQuietly([
+                                    'kode_unique' => trim($data['kode_bium_edit']),
+                                ]);
+                            }
+
+                            // Sync Kondisi Hardware Aktual untuk Dashboard Super Admin
+                            if (!empty($data['spec_details'])) {
+                                $map = [
+                                    1 => 'Motherboard', 2 => 'Processor', 3 => 'Hardisk', 4 => 'VGA',
+                                    5 => 'RAM', 6 => 'DVD', 7 => 'Keyboard', 8 => 'Mouse', 9 => 'Monitor',
+                                ];
+
+                                foreach ($map as $index => $komponen) {
+                                    if (isset($data['spec_details'][$index]['kondisi'])) {
+                                        $invComp = \App\Models\InventoryPcComponent::where('inventory_id', $inv->id)
+                                            ->where('komponen', $komponen)
+                                            ->first();
+                                        if ($invComp) {
+                                            $invComp->updateQuietly([
+                                                'kondisi' => $data['spec_details'][$index]['kondisi'],
+                                                'keterangan' => trim((string) ($data['spec_details'][$index]['catatan_kondisi'] ?? '')),
+                                            ]);
+                                        }
+                                    }
+                                }
+                            }
+                        } else {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Error')
+                                ->body('Data master PC tidak ditemukan untuk diupdate.')
+                                ->danger()
+                                ->send();
+                        }
 
                         $incomingFingerprint = $service->fingerprintFromDetails(
                             $data['spec_details'] ?? [],
@@ -353,6 +430,9 @@ class PcTable extends Component implements HasForms, HasTable
                                     
                                     $inv = \App\Models\Inventory::where('no_pc', $record->no_pc)
                                         ->where('lokasi_id', $labId)
+                                        ->where('bulan', $this->bulan)
+                                        ->where('tahun', $this->tahun)
+                                        ->whereNull('inventoriable_type')
                                         ->first();
                                     $kodePc = $inv ? $inv->kode_unique : '-';
 
@@ -412,10 +492,15 @@ class PcTable extends Component implements HasForms, HasTable
     protected function getPcFormSchema(bool $isEdit = false): array
     {
         return [
-            Grid::make(2)->schema([
+            Grid::make(3)->schema([
                 Placeholder::make('no_pc_preview')
                     ->label('No PC')
                     ->content(fn ($state) => $state ?: '-'),
+
+                TextInput::make('kode_bium_edit')
+                    ->label('Kode BIUM')
+                    ->placeholder('Contoh: D2A/PC/2026')
+                    ->maxLength(255),
 
                 Select::make('kondisi')
                     ->label('Kondisi PC')

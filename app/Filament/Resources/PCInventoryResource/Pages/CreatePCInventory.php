@@ -21,7 +21,10 @@ class CreatePCInventory extends CreateRecord
          */
         $data['bulan'] = $period['bulan'];
         $data['tahun'] = $period['tahun'];
-        $data['pc_id'] = InventoryPcIdService::generateNextId($period['bulan'], $period['tahun']);
+        
+        // Auto-generate sequence untuk ID (menggunakan kode_inventaris)
+        $nextId = InventoryPcIdService::generateNextId($period['bulan'], $period['tahun']);
+        $data['kode_inventaris'] = InventoryPcIdService::format($nextId);
 
         /*
          * PC baru belum diplot ke mana pun.

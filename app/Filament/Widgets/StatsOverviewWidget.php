@@ -15,49 +15,53 @@ class StatsOverviewWidget extends BaseWidget
 
     protected function getStats(): array
     {
-        $totalLaboran = User::count();
-        $totalLaboratorium = Laboratorium::count();
+        $totalUser = User::count();
+        $totalRuangan = Laboratorium::count();
 
-        // Hitung jumlah PC
-        $pcCount = Inventory::where('inventoriable_type', 'App\Models\PCDetail')->count();
+        // Hitung jumlah PC (Standard: inventoriable_type is null)
+        $pcCount = Inventory::whereNull('inventoriable_type')->count();
 
-        // Hitung jumlah Non-PC
-        $nonPcCount = Inventory::where('inventoriable_type', 'App\Models\NonPCDetail')->count();
+        // Hitung komponen rusak dari master komponen
+        $komponenRusakCount = \App\Models\InventoryPcComponent::whereIn('kondisi', ['Rusak', 'Rusak Berat', 'Kurang Baik', 'Rusak Ringan'])->count();
 
-        // Hitung jumlah Software
-        $softwareCount = Inventory::where('inventoriable_type', 'App\Models\SoftwareDetail')->count();
+        // Hitung jumlah PC di Gudang
+        $gudangIds = Laboratorium::where('ruang', 'LIKE', '%Gudang%')->orWhere('ruang', 'GD')->pluck('id');
+        $pcGudangCount = Inventory::whereNull('inventoriable_type')
+            ->whereIn('lokasi_id', $gudangIds)
+            ->count();
 
         return [
-            Stat::make('Total Laboran', $totalLaboran)
-                ->description('Jumlah laboran yang terdaftar')
-                ->descriptionIcon('heroicon-m-user-group')
-                ->color('success'),
-
-            Stat::make('Total Laboratorium', $totalLaboratorium)
-                ->description('Jumlah laboratorium yang tersedia')
-                ->descriptionIcon('heroicon-m-building-office-2')
+            Stat::make('Total Inventaris PC', $pcCount)
+                ->description('Jumlah seluruh PC terdaftar')
+                ->descriptionIcon('heroicon-m-computer-desktop')
                 ->color('primary'),
 
-            Stat::make('Total PC', $pcCount)
-                ->description('Jumlah inventaris PC')
-                ->descriptionIcon('heroicon-m-computer-desktop')
-                ->color('warning'),
-
-            Stat::make('Total Non-PC', $nonPcCount)
-                ->description('Jumlah inventaris Non-PC')
-                ->descriptionIcon('heroicon-m-cpu-chip')
+            Stat::make('Komponen Rusak', $komponenRusakCount)
+                ->description('Jumlah perangkat keras rusak')
+                ->descriptionIcon('heroicon-m-wrench-screwdriver')
                 ->color('danger'),
 
-            Stat::make('Total Software', $softwareCount)
-                ->description('Jumlah inventaris Software')
-                ->descriptionIcon('heroicon-m-code-bracket-square')
-                ->color('info'),
+            Stat::make('Jumlah User', $totalUser)
+                ->description('Total pengguna/laboran terdaftar')
+                ->descriptionIcon('heroicon-m-users')
+                ->color('success'),
+
+            Stat::make('Total Ruangan', $totalRuangan)
+                ->description('Total data laboratorium')
+                ->descriptionIcon('heroicon-m-building-office-2')
+                ->color('secondary'),
+
+            Stat::make('PC di Gudang', $pcGudangCount)
+                ->description('Total PC tersimpan di gudang')
+                ->descriptionIcon('heroicon-m-archive-box')
+                ->color('warning'),
         ];
     }
 
-    // Fungsi untuk memeriksa apakah widget ini dapat ditampilkan berdasarkan izin
+    // Fungsi untuk memeriksa apakah widget ini dapat ditampilkan
     public static function canView(): bool
     {
-        return Gate::check('view-widget', 'StatsOverviewWidget');
+        $user = auth()->user();
+        return $user && $user->hasRole('super_admin');
     }
 }

@@ -138,7 +138,7 @@ class PCInventoryResource extends Resource
                 ->description('Admin tidak mengisi bulan/tahun. PC baru otomatis masuk Gudang dan periode yang sedang dibuka.')
                 ->schema([
                     TextInput::make('kode_unique')
-                        ->label('Kode Unique')
+                        ->label('Kode BIUM')
                         ->nullable()
                         ->maxLength(50)
                         ->placeholder('Boleh kosong / contoh: LAB-A-01'),
@@ -167,11 +167,11 @@ class PCInventoryResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('pc_id')
+                TextColumn::make('urutan_id')
                     ->label('ID')
-                    ->formatStateUsing(fn ($state): string => InventoryPcIdService::format($state ? (int) $state : null))
-                    ->sortable()
-                    ->searchable(),
+                    ->getStateUsing(fn ($record) => $record->kode_inventaris ? InventoryPcIdService::format((int) $record->kode_inventaris) : '-')
+                    ->sortable(query: fn ($query, $direction) => $query->orderBy('kode_inventaris', $direction))
+                    ->searchable(query: fn ($query, $search) => $query->where('kode_inventaris', 'like', "%{$search}%")),
 
                 TextColumn::make('no_pc')
                     ->label('No PC')
@@ -186,7 +186,7 @@ class PCInventoryResource extends Resource
                     ),
 
                 TextColumn::make('kode_unique')
-                    ->label('Kode Unique')
+                    ->label('Kode BIUM')
                     ->placeholder('-')
                     ->searchable()
                     ->sortable(),
@@ -292,16 +292,16 @@ class PCInventoryResource extends Resource
         return $infolist->schema([
             InfoSection::make('Informasi Detail')
                 ->schema([
-                    TextEntry::make('pc_id')
+                    TextEntry::make('urutan_id')
                         ->label('ID')
-                        ->formatStateUsing(fn ($state): string => InventoryPcIdService::format($state ? (int) $state : null)),
+                        ->getStateUsing(fn ($record) => $record->kode_inventaris ? InventoryPcIdService::format((int) $record->kode_inventaris) : '-'),
 
                     TextEntry::make('no_pc')
                         ->label('No PC')
                         ->placeholder('-'),
 
                     TextEntry::make('kode_unique')
-                        ->label('Kode Unique')
+                        ->label('Kode BIUM')
                         ->placeholder('-'),
 
                     TextEntry::make('lokasi.ruang')

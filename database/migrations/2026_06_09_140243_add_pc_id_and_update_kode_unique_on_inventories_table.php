@@ -13,35 +13,40 @@ return new class extends Migration
             return;
         }
 
-        Schema::table('inventories', function (Blueprint $table) {
-            if (! Schema::hasColumn('inventories', 'pc_id')) {
-                $table->unsignedInteger('pc_id')->nullable()->after('id');
-            }
-        });
+        /*
+         * Hapus unique constraint global pada kode_inventaris agar bisa
+         * menampung angka berulang antar bulan (001 di bulan Mei, 001 di bulan Juni)
+         */
+        try {
+            Schema::table('inventories', function (Blueprint $table) {
+                // mysql will not throw if we use catching.
+                $table->dropUnique('inventories_kode_inventaris_unique');
+            });
+        } catch (Throwable $e) {}
+        try {
+            Schema::table('inventories', function (Blueprint $table) {
+                $table->dropUnique(['kode_inventaris']);
+            });
+        } catch (Throwable $e) {}
 
         /*
          * Hapus unique lama pada kode_unique karena sekarang kode_unique
-         * boleh kosong dan bisa diisi manual oleh user.
+         * boleh kosong dan bisa diisi manual oleh user sebagai BIUM.
          */
         try {
             Schema::table('inventories', function (Blueprint $table) {
                 $table->dropUnique(['kode_unique']);
             });
-        } catch (Throwable $e) {
-            //
-        }
-
+        } catch (Throwable $e) {}
         try {
             Schema::table('inventories', function (Blueprint $table) {
                 $table->dropUnique('inventories_period_kode_unique_unique');
             });
-        } catch (Throwable $e) {
-            //
-        }
+        } catch (Throwable $e) {}
 
         /*
          * Pindahkan kode_unique lama yang masih berupa angka
-         * ke pc_id. Contoh kode_unique 001 menjadi pc_id 1.
+         * ke kode_inventaris. Contoh kode_unique 001 menjadi kode_inventaris 001.
          */
         DB::table('inventories')
             ->whereNull('inventoriable_type')
@@ -55,7 +60,7 @@ return new class extends Migration
                         DB::table('inventories')
                             ->where('id', $inventory->id)
                             ->update([
-                                'pc_id' => (int) $kodeUnique,
+                                'kode_inventaris' => str_pad($kodeUnique, 3, '0', STR_PAD_LEFT),
                                 'kode_unique' => null,
                             ]);
                     }
@@ -63,7 +68,7 @@ return new class extends Migration
             });
 
         /*
-         * Jika masih ada data PC yang pc_id-nya kosong,
+         * Jika masih ada data PC yang kode_inventaris-nya kosong,
          * isi otomatis berdasarkan urutan id per periode.
          */
         $periods = DB::table('inventories')
@@ -79,50 +84,34 @@ return new class extends Migration
                 ->whereNull('inventoriable_type')
                 ->where('bulan', $period->bulan)
                 ->where('tahun', $period->tahun)
-                ->orderBy('pc_id')
                 ->orderBy('id')
                 ->get();
 
             $number = 1;
 
             foreach ($inventories as $inventory) {
-                DB::table('inventories')
-                    ->where('id', $inventory->id)
-                    ->update([
-                        'pc_id' => $number,
-                    ]);
-
+                if (empty($inventory->kode_inventaris)) {
+                    DB::table('inventories')
+                        ->where('id', $inventory->id)
+                        ->update([
+                            'kode_inventaris' => str_pad((string) $number, 3, '0', STR_PAD_LEFT),
+                        ]);
+                } else {
+                    $number = (int) $inventory->kode_inventaris;
+                }
                 $number++;
             }
         }
 
         try {
             Schema::table('inventories', function (Blueprint $table) {
-                $table->unique(['bulan', 'tahun', 'pc_id'], 'inventories_period_pc_id_unique');
+                $table->unique(['bulan', 'tahun', 'kode_inventaris', 'lokasi_id'], 'inventories_period_kode_inv_unique');
             });
-        } catch (Throwable $e) {
-            //
-        }
+        } catch (Throwable $e) {}
     }
 
     public function down(): void
     {
-        if (! Schema::hasTable('inventories')) {
-            return;
-        }
-
-        try {
-            Schema::table('inventories', function (Blueprint $table) {
-                $table->dropUnique('inventories_period_pc_id_unique');
-            });
-        } catch (Throwable $e) {
-            //
-        }
-
-        Schema::table('inventories', function (Blueprint $table) {
-            if (Schema::hasColumn('inventories', 'pc_id')) {
-                $table->dropColumn('pc_id');
-            }
-        });
+        // No down migration as we can't reliably reconstruct the global unique index
     }
 };
