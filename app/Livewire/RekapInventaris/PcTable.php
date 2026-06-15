@@ -6,6 +6,7 @@ use App\Models\RekapInventarisPc;
 use Filament\Forms\Get;
 use Filament\Tables;
 use Filament\Tables\Table;
+use Livewire\Attributes\On;
 use Livewire\Component;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Tables\Contracts\HasTable;
@@ -54,6 +55,12 @@ class PcTable extends Component implements HasForms, HasTable
     public function closeModal()
     {
         $this->dispatch('close-modal');
+    }
+
+    #[On('open-sinkronisasi-modal')]
+    public function openSinkronisasiModal()
+    {
+        $this->mountTableAction('sinkronisasi');
     }
 
     public function table(Table $table): Table

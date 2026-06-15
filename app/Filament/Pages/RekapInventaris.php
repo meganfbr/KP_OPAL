@@ -99,18 +99,11 @@ class RekapInventaris extends Page implements HasForms, HasActions
             }
         } else {
             if ($isSuperAdmin) {
-                // Super admin: jangan buat periode baru, cari yang existing saja
+                // Super admin: tidak auto-create, cari berdasarkan bulan/tahun yang dipilih
                 $periode = RekapInventarisPeriode::where('laboratorium_id', $this->laboratoriumId)
                     ->where('bulan', $this->bulan)
                     ->where('tahun', $this->tahun)
                     ->first();
-
-                if (!$periode) {
-                    // Ambil periode terakhir untuk lab ini
-                    $periode = RekapInventarisPeriode::where('laboratorium_id', $this->laboratoriumId)
-                        ->orderByDesc('tahun')->orderByDesc('bulan')
-                        ->first();
-                }
 
                 if ($periode) {
                     $this->periodeId = $periode->id;
@@ -128,7 +121,6 @@ class RekapInventaris extends Page implements HasForms, HasActions
 
         $this->form->fill([
             'lab_id' => $this->laboratoriumId,
-            'periode_id' => $this->periodeId,
         ]);
     }
 
@@ -144,7 +136,7 @@ class RekapInventaris extends Page implements HasForms, HasActions
     {
         return $form
             ->schema([
-                \Filament\Forms\Components\Grid::make(2)
+                \Filament\Forms\Components\Grid::make(1)
                     ->schema([
                         Select::make('lab_id')
                             ->label('Pilih Ruangan')
@@ -176,24 +168,16 @@ class RekapInventaris extends Page implements HasForms, HasActions
                                 return $laboranRoles->count() <= 1;
                             })
                             ->afterStateUpdated(function ($state) {
-                                $this->redirect(static::getUrl(['lab' => $state, 'bulan' => $this->bulan, 'tahun' => $this->tahun]));
-                            }),
-
-                        Select::make('periode_id')
-                            ->label('Pilih Periode Rekap')
-                            ->options(
-                                RekapInventarisPeriode::query()
-                                    ->where('laboratorium_id', $this->laboratoriumId)
-                                    ->orderByDesc('tahun')
-                                    ->orderByDesc('bulan')
-                                    ->get()
-                                    ->pluck('nama_periode', 'id')
-                            )
-                            ->searchable()
-                            ->required()
-                            ->live()
-                            ->afterStateUpdated(function ($state) {
-                                $this->redirect(static::getUrl(['periode_id' => $state]));
+                                $this->laboratoriumId = $state;
+                                $labInfo = Laboratorium::find($this->laboratoriumId);
+                                $this->laboratoriumNama = $labInfo?->ruang;
+                                
+                                $periode = RekapInventarisPeriode::where('laboratorium_id', $this->laboratoriumId)
+                                    ->where('bulan', $this->bulan)
+                                    ->where('tahun', $this->tahun)
+                                    ->first();
+                                
+                                $this->periodeId = $periode ? $periode->id : null;
                             }),
                     ]),
             ])
@@ -203,6 +187,47 @@ class RekapInventaris extends Page implements HasForms, HasActions
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('pilih_periode')
+                ->label('Pilih Periode')
+                ->icon('heroicon-o-calendar-days')
+                ->form([
+                    Select::make('bulan')
+                        ->label('Bulan')
+                        ->options([
+                            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+                            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+                            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'
+                        ])
+                        ->default(fn () => $this->bulan)
+                        ->required(),
+                    Select::make('tahun')
+                        ->label('Tahun')
+                        ->options(function() {
+                            $years = [];
+                            for ($y = 2024; $y <= Carbon::now()->year + 2; $y++) {
+                                $years[$y] = $y;
+                            }
+                            return $years;
+                        })
+                        ->default(fn () => $this->tahun)
+                        ->required(),
+                ])
+                ->action(function (array $data) {
+                    $this->bulan = (int) $data['bulan'];
+                    $this->tahun = (int) $data['tahun'];
+
+                    $periode = RekapInventarisPeriode::where('laboratorium_id', $this->laboratoriumId)
+                        ->where('bulan', $this->bulan)
+                        ->where('tahun', $this->tahun)
+                        ->first();
+
+                    if ($periode) {
+                        $this->periodeId = $periode->id;
+                    } else {
+                        $this->periodeId = null;
+                    }
+                }),
+
             \Filament\Actions\ActionGroup::make([
                 Action::make('export_pdf')
                     ->label('Download PDF')
@@ -248,7 +273,7 @@ class RekapInventaris extends Page implements HasForms, HasActions
                 ->label('Copy Bulan Lalu')
                 ->icon('heroicon-o-document-duplicate')
                 ->color('warning')
-                ->visible(!auth()->user()->hasRole('super_admin'))
+                ->visible(fn() => $this->periodeId !== null)
                 ->requiresConfirmation()
                 ->action(function () {
                     $currentPeriod = RekapInventarisPeriode::findOrFail($this->periodeId);
@@ -270,7 +295,7 @@ class RekapInventaris extends Page implements HasForms, HasActions
                 ->label('Hapus Halaman')
                 ->icon('heroicon-o-trash')
                 ->color('danger')
-                ->visible(!auth()->user()->hasRole('super_admin'))
+                ->visible(fn() => $this->periodeId !== null && !auth()->user()->hasRole('super_admin'))
                 ->requiresConfirmation()
                 ->action(function () {
                     $this->deleteAllDataInPeriod($this->periodeId);
@@ -385,6 +410,14 @@ class RekapInventaris extends Page implements HasForms, HasActions
         $this->redirect(static::getUrl(['periode_id' => $this->periodeId]));
     }
 
+    public function buatPeriode()
+    {
+        $periode = $this->getOrCreatePeriode($this->bulan, $this->tahun, $this->laboratoriumId);
+        $this->periodeId = $periode->id;
+        Notification::make()->title('Berhasil')->body('Periode berhasil dibuat.')->success()->send();
+        $this->redirect(static::getUrl(['lab' => $this->laboratoriumId, 'bulan' => $this->bulan, 'tahun' => $this->tahun]));
+    }
+
     public function getPeriodeLabelProperty(): string
     {
         return $this->getNamaPeriode($this->bulan, $this->tahun);
@@ -409,7 +442,7 @@ class RekapInventaris extends Page implements HasForms, HasActions
             ->orderByDesc('tahun')->orderByDesc('bulan')->first();
     }
 
-    protected function isPeriodCompletelyEmpty(int $periodeId): bool
+    public function isPeriodCompletelyEmpty(int $periodeId): bool
     {
         return RekapInventarisPc::where('rekap_inventaris_periode_id', $periodeId)->count() === 0
             && RekapInventarisSpec::where('rekap_inventaris_periode_id', $periodeId)->count() === 0

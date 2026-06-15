@@ -33,6 +33,25 @@
 
     <div class="space-y-8">
         @if($this->periodeId)
+            @if($this->isPeriodCompletelyEmpty($this->periodeId))
+                <div class="rounded-xl border border-dashed border-primary-300 dark:border-primary-700 p-8 text-center bg-primary-50/50 dark:bg-primary-900/10 shadow-sm">
+                    <div class="text-primary-600 dark:text-primary-400">
+                        <svg class="mx-auto h-12 w-12 mb-3 text-primary-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"/></svg>
+                        <p class="font-semibold text-lg">Data Rekap Masih Kosong</p>
+                        <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Anda dapat memuat data awal dengan cara Copy Bulan Lalu atau melakukan Sinkronisasi Data PC.</p>
+                        
+                        <div class="mt-6 flex justify-center gap-3">
+                            <x-filament::button wire:click="mountAction('copyBulanSebelumnya')" color="warning" icon="heroicon-o-document-duplicate">
+                                Copy Bulan Lalu
+                            </x-filament::button>
+                            <x-filament::button wire:click="$dispatch('open-sinkronisasi-modal')" color="success" icon="heroicon-o-arrow-path">
+                                Sinkronisasi Data PC
+                            </x-filament::button>
+                        </div>
+                    </div>
+                </div>
+            @endif
+
             @livewire(
                 'rekap-inventaris.pc-table',
                 [
@@ -57,11 +76,19 @@
                 )
             </div>
         @else
-            <div class="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-8 text-center">
+            <div class="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-8 text-center bg-white dark:bg-gray-900 shadow-sm">
                 <div class="text-gray-400 dark:text-gray-500">
                     <svg class="mx-auto h-12 w-12 mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
                     <p class="font-semibold text-lg">Belum Ada Data Rekap</p>
-                    <p class="mt-1 text-sm">Laboratorium ini belum memiliki data rekap inventaris untuk periode manapun.</p>
+                    <p class="mt-1 text-sm">Laboratorium ini belum memiliki data rekap inventaris untuk periode {{ $this->periodeLabel }}.</p>
+                    
+                    @if (auth()->user()->hasRole('super_admin'))
+                        <div class="mt-6 flex justify-center gap-3">
+                            <x-filament::button wire:click="buatPeriode" color="primary">
+                                Buat Periode
+                            </x-filament::button>
+                        </div>
+                    @endif
                 </div>
             </div>
         @endif

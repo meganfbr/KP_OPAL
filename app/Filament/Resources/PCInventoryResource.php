@@ -167,11 +167,11 @@ class PCInventoryResource extends Resource
     {
         return $table
             ->columns([
-                TextColumn::make('urutan_id')
+                TextColumn::make('kode_inventaris')
                     ->label('ID')
-                    ->getStateUsing(fn ($record) => $record->kode_inventaris ? InventoryPcIdService::format((int) $record->kode_inventaris) : '-')
-                    ->sortable(query: fn ($query, $direction) => $query->orderBy('kode_inventaris', $direction))
-                    ->searchable(query: fn ($query, $search) => $query->where('kode_inventaris', 'like', "%{$search}%")),
+                    ->formatStateUsing(fn ($state) => $state ? InventoryPcIdService::format((int) $state) : '-')
+                    ->sortable()
+                    ->searchable(),
 
                 TextColumn::make('no_pc')
                     ->label('No PC')
@@ -292,9 +292,9 @@ class PCInventoryResource extends Resource
         return $infolist->schema([
             InfoSection::make('Informasi Detail')
                 ->schema([
-                    TextEntry::make('urutan_id')
+                    TextEntry::make('kode_inventaris')
                         ->label('ID')
-                        ->getStateUsing(fn ($record) => $record->kode_inventaris ? InventoryPcIdService::format((int) $record->kode_inventaris) : '-'),
+                        ->formatStateUsing(fn ($state) => $state ? InventoryPcIdService::format((int) $state) : '-'),
 
                     TextEntry::make('no_pc')
                         ->label('No PC')
