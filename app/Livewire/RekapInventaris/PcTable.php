@@ -57,12 +57,6 @@ class PcTable extends Component implements HasForms, HasTable
         $this->dispatch('close-modal');
     }
 
-    #[On('open-sinkronisasi-modal')]
-    public function openSinkronisasiModal()
-    {
-        $this->mountTableAction('sinkronisasi');
-    }
-
     public function table(Table $table): Table
     {
         return $table
@@ -74,85 +68,7 @@ class PcTable extends Component implements HasForms, HasTable
             )
             ->heading('Rekap PC')
             ->headerActions([
-                Tables\Actions\Action::make('sinkronisasi')
-                    ->label('Sinkronisasi Data PC')
-                    ->icon('heroicon-o-arrow-path')
-                    ->color('success')
-                    ->requiresConfirmation()
-                    ->modalHeading('Sinkronisasi Data PC dari Master')
-                    ->modalDescription('Proses ini akan menarik data PC dari master Inventaris sesuai laboratorium yang dipilih. PC yang belum ada pada rekap bulan ini akan ditambahkan otomatis dengan kondisi "Baik".')
-                    ->modalSubmitActionLabel('Ya, Sinkronisasi')
-                    ->action(function () {
-                        $labId = $this->laboratoriumId;
-                        if (!$labId) {
-                            $periodeInfo = \App\Models\RekapInventarisPeriode::find($this->periodeId);
-                            $labId = $periodeInfo?->laboratorium_id;
-                        }
-                        
-                        if (!$labId) {
-                            \Filament\Notifications\Notification::make()->title('Gagal')->body('Laboratorium tidak ditemukan.')->danger()->send();
-                            return;
-                        }
-                        
-                        $masterPcs = \App\Models\Inventory::whereNull('inventoriable_type')
-                            ->where('lokasi_id', $labId)
-                            ->where('bulan', $this->bulan)
-                            ->where('tahun', $this->tahun)
-                            ->whereNotNull('no_pc')
-                            ->with('pcComponents')
-                            ->get();
-                            
-                        if ($masterPcs->isEmpty()) {
-                            \Filament\Notifications\Notification::make()->title('Info')->body('Tidak ada data PC di master Inventaris untuk laboratorium ini.')->info()->send();
-                            return;
-                        }
-
-                        $service = resolve(\App\Services\RekapInventarisSpecService::class);
-                        $countAdded = 0;
-
-                        foreach ($masterPcs as $master) {
-                            $exists = \App\Models\RekapInventarisPc::where('rekap_inventaris_periode_id', $this->periodeId)
-                                ->where('no_pc', $master->no_pc)
-                                ->exists();
-
-                            if (!$exists) {
-                                $details = [];
-                                $mapComp = [
-                                    'Motherboard' => 1, 'Processor' => 2, 'Hardisk' => 3, 'VGA' => 4,
-                                    'RAM' => 5, 'DVD' => 6, 'Keyboard' => 7, 'Mouse' => 8, 'Monitor' => 9
-                                ];
-
-                                foreach ($master->pcComponents as $comp) {
-                                    $index = $mapComp[$comp->komponen] ?? null;
-                                    if ($index) {
-                                        $details[$index] = [
-                                            'detail' => $comp->detail_merk ?? '-',
-                                            'kondisi' => 'Baik',
-                                            'catatan_kondisi' => '',
-                                        ];
-                                    }
-                                }
-                                
-                                $spec = $service->findOrCreate($this->periodeId, $details, 'Baik');
-
-                                \App\Models\RekapInventarisPc::create([
-                                    'rekap_inventaris_periode_id' => $this->periodeId,
-                                    'rekap_inventaris_spec_id' => $spec->id,
-                                    'no_pc' => $master->no_pc,
-                                    'lokasi' => $master->pcDetail->posisi ?? 'Client',
-                                    'kondisi' => 'Baik',
-                                ]);
-                                $countAdded++;
-                            }
-                        }
-
-                        if ($countAdded > 0) {
-                            $service->syncPeriodSpecOrder($this->periodeId);
-                            \Filament\Notifications\Notification::make()->title('Berhasil')->body("Tersinkronisasi {$countAdded} PC baru.")->success()->send();
-                        } else {
-                            \Filament\Notifications\Notification::make()->title('Info')->body('Semua PC sudah tersinkronisasi, tidak ada data baru.')->info()->send();
-                        }
-                    }),
+                 // Sinkronisasi Data PC action dipindah ke RekapInventaris.php
             ])
             ->columns([
                 TextColumn::make('no_pc')

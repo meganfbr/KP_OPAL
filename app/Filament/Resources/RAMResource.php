@@ -35,6 +35,11 @@ class RAMResource extends Resource
         return $user && $user->hasRole('super_admin');
     }
 
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canManageHardware();
+    }
+
     public static function canCreate(): bool
     {
         return static::canManageHardware();

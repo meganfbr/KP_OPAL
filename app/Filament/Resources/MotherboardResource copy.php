@@ -22,6 +22,11 @@ use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class MotherboardResource extends Resource
 {
+    public static function shouldRegisterNavigation(): bool
+    {
+        return static::canManageHardware();
+    }
+
     public static function canCreate(): bool
     {
         return !auth()->user()->hasRole('super_admin');

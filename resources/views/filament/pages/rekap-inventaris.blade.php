@@ -41,12 +41,8 @@
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">Anda dapat memuat data awal dengan cara Copy Bulan Lalu atau melakukan Sinkronisasi Data PC.</p>
                         
                         <div class="mt-6 flex justify-center gap-3">
-                            <x-filament::button wire:click="mountAction('copyBulanSebelumnya')" color="warning" icon="heroicon-o-document-duplicate">
-                                Copy Bulan Lalu
-                            </x-filament::button>
-                            <x-filament::button wire:click="$dispatch('open-sinkronisasi-modal')" color="success" icon="heroicon-o-arrow-path">
-                                Sinkronisasi Data PC
-                            </x-filament::button>
+                            {{ $this->copyBulanSebelumnyaAction }}
+                            {{ $this->sinkronisasiAction }}
                         </div>
                     </div>
                 </div>

@@ -269,26 +269,17 @@ class RekapInventaris extends Page implements HasForms, HasActions
                 ->color('primary')
                 ->visible(fn() => auth()->user()->hasRole('super_admin')),
 
-            Action::make('copyBulanSebelumnya')
-                ->label('Copy Bulan Lalu')
-                ->icon('heroicon-o-document-duplicate')
-                ->color('warning')
-                ->visible(fn() => $this->periodeId !== null)
+            Action::make('sinkronisasiPage')
+                ->label('Sinkronisasi Data PC')
+                ->icon('heroicon-o-arrow-path')
+                ->color('success')
                 ->requiresConfirmation()
+                ->modalHeading('Sinkronisasi Data PC dari Master')
+                ->modalDescription('Proses ini akan menarik data PC dari master Inventaris sesuai laboratorium yang dipilih. PC yang belum ada pada rekap bulan ini akan ditambahkan otomatis dengan kondisi "Baik".')
+                ->modalSubmitActionLabel('Ya, Sinkronisasi')
+                ->visible(fn() => $this->periodeId !== null && ! $this->isPeriodCompletelyEmpty($this->periodeId))
                 ->action(function () {
-                    $currentPeriod = RekapInventarisPeriode::findOrFail($this->periodeId);
-                    if (! $this->isPeriodCompletelyEmpty($currentPeriod->id)) {
-                        Notification::make()->title('Gagal')->body('Periode ini sudah memiliki data.')->danger()->send();
-                        return;
-                    }
-                    $previousPeriod = $this->getPreviousPeriod($currentPeriod);
-                    if (!$previousPeriod) {
-                        Notification::make()->title('Gagal')->body('Periode sebelumnya tidak ditemukan.')->warning()->send();
-                        return;
-                    }
-                    $this->copyAllDataFromPeriod($previousPeriod->id, $currentPeriod->id);
-                    Notification::make()->title('Berhasil')->body("Data disalin dari {$previousPeriod->nama_periode}.")->success()->send();
-                    $this->refresh();
+                    $this->doSinkronisasi();
                 }),
 
             Action::make('hapusIsiHalaman')
@@ -513,5 +504,118 @@ class RekapInventaris extends Page implements HasForms, HasActions
     {
         $namaBulan = [1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember'];
         return ($namaBulan[$bulan] ?? 'Bulan Tidak Valid') . ' ' . $tahun;
+    }
+
+    public function copyBulanSebelumnyaAction(): Action
+    {
+        return Action::make('copyBulanSebelumnya')
+            ->label('Copy Bulan Lalu')
+            ->icon('heroicon-o-document-duplicate')
+            ->color('warning')
+            ->requiresConfirmation()
+            ->action(function () {
+                $currentPeriod = RekapInventarisPeriode::findOrFail($this->periodeId);
+                if (! $this->isPeriodCompletelyEmpty($currentPeriod->id)) {
+                    Notification::make()->title('Gagal')->body('Periode ini sudah memiliki data.')->danger()->send();
+                    return;
+                }
+                $previousPeriod = $this->getPreviousPeriod($currentPeriod);
+                if (!$previousPeriod) {
+                    Notification::make()->title('Gagal')->body('Periode sebelumnya tidak ditemukan.')->warning()->send();
+                    return;
+                }
+                $this->copyAllDataFromPeriod($previousPeriod->id, $currentPeriod->id);
+                Notification::make()->title('Berhasil')->body("Data disalin dari {$previousPeriod->nama_periode}.")->success()->send();
+                $this->refresh();
+            });
+    }
+
+    public function sinkronisasiAction(): Action
+    {
+        return Action::make('sinkronisasi')
+            ->label('Sinkronisasi Data PC')
+            ->icon('heroicon-o-arrow-path')
+            ->color('success')
+            ->requiresConfirmation()
+            ->modalHeading('Sinkronisasi Data PC dari Master')
+            ->modalDescription('Proses ini akan menarik data PC dari master Inventaris sesuai laboratorium yang dipilih. PC yang belum ada pada rekap bulan ini akan ditambahkan otomatis dengan kondisi "Baik".')
+            ->modalSubmitActionLabel('Ya, Sinkronisasi')
+            ->action(function () {
+                $this->doSinkronisasi();
+            });
+    }
+
+    protected function doSinkronisasi(): void
+    {
+        $labId = $this->laboratoriumId;
+        if (!$labId) {
+            $periodeInfo = RekapInventarisPeriode::find($this->periodeId);
+            $labId = $periodeInfo?->laboratorium_id;
+        }
+        
+        if (!$labId) {
+            Notification::make()->title('Gagal')->body('Laboratorium tidak ditemukan.')->danger()->send();
+            return;
+        }
+        
+        $masterPcs = \App\Models\Inventory::whereNull('inventoriable_type')
+            ->where('lokasi_id', $labId)
+            ->where('bulan', $this->bulan)
+            ->where('tahun', $this->tahun)
+            ->whereNotNull('no_pc')
+            ->with('pcComponents')
+            ->get();
+            
+        if ($masterPcs->isEmpty()) {
+            Notification::make()->title('Info')->body('Tidak ada data PC di master Inventaris untuk laboratorium ini.')->info()->send();
+            return;
+        }
+
+        $service = resolve(\App\Services\RekapInventarisSpecService::class);
+        $countAdded = 0;
+
+        foreach ($masterPcs as $master) {
+            $exists = RekapInventarisPc::where('rekap_inventaris_periode_id', $this->periodeId)
+                ->where('no_pc', $master->no_pc)
+                ->exists();
+
+            if (!$exists) {
+                $details = [];
+                $mapComp = [
+                    'Motherboard' => 1, 'Processor' => 2, 'Hardisk' => 3, 'VGA' => 4,
+                    'RAM' => 5, 'DVD' => 6, 'Keyboard' => 7, 'Mouse' => 8, 'Monitor' => 9
+                ];
+
+                foreach ($master->pcComponents as $comp) {
+                    $index = $mapComp[$comp->komponen] ?? null;
+                    if ($index) {
+                        $details[$index] = [
+                            'detail' => $comp->detail_merk ?? '-',
+                            'kondisi' => 'Baik',
+                            'catatan_kondisi' => '',
+                        ];
+                    }
+                }
+                
+                $spec = $service->findOrCreate($this->periodeId, $details, 'Baik');
+
+                RekapInventarisPc::create([
+                    'rekap_inventaris_periode_id' => $this->periodeId,
+                    'rekap_inventaris_spec_id' => $spec->id,
+                    'no_pc' => $master->no_pc,
+                    'lokasi' => $master->pcDetail->posisi ?? 'Client',
+                    'kondisi' => 'Baik',
+                ]);
+                $countAdded++;
+            }
+        }
+
+        if ($countAdded > 0) {
+            $service->syncPeriodSpecOrder($this->periodeId);
+            Notification::make()->title('Berhasil')->body("Tersinkronisasi {$countAdded} PC baru.")->success()->send();
+            $this->refresh();
+        } else {
+            Notification::make()->title('Info')->body('Semua PC sudah tersinkronisasi, tidak ada data baru.')->info()->send();
+        }
     }
 }

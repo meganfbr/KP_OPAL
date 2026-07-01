@@ -27,6 +27,7 @@ class DatabaseSeeder extends Seeder
             GudangSeeder::class,
             RolePermissionSeeder::class,
             UserSeeder::class,
+            LaboranSeeder::class,
         ]);
 
         $tahunSekarang = date('Y');
@@ -1115,8 +1116,10 @@ class DatabaseSeeder extends Seeder
             LabSoftwareSeeder::class,          // Menaruh software di lab
             CourseSeeder::class,               // Mata kuliah
             ScheduleSeeder::class,             // Jadwal lab
-            // InventarisPcSeeder::class,         // Membuat PC Inventaris + Snapshots pc_components
-            JanuariRekapInventarisSeeder::class// Membuat history rekap inventaris
+            InventarisPcSeeder::class,         // PC Awal (Dummy/Minimal)
+            ImportInventarisPcExcelSeeder::class, // DATA REAL 560 PC dari Excel
+            LaboranImportSeeder::class,        // Import Laboran dari Excel & Sync Petugas
+            // JanuariRekapInventarisSeeder::class// Membuat history rekap inventaris
         ]);
     }
 }
