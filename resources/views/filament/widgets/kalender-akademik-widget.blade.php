@@ -1,7 +1,6 @@
-<div>
+<x-filament-widgets::widget class="h-full">
     <!-- Widget kalender akademik -->
-    <div class="fi-wi-widget">
-        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
+        <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10 h-full">
             <div class="p-4">
                 <h2 class="text-xl font-bold text-center mb-4">Kalender Akademik 2024/2025</h2>
 
@@ -37,7 +36,6 @@
                 </div>
             </div>
         </div>
-    </div>
 
     <!-- Modal untuk memperbesar gambar kalender akademik -->
     <div
@@ -190,4 +188,4 @@
     <style>
         [x-cloak] { display: none !important; }
     </style>
-</div>
+</x-filament-widgets::widget>

@@ -1,4 +1,4 @@
-<div class="fi-wi-widget">
+<x-filament-widgets::widget>
     <div class="fi-section rounded-xl bg-white shadow-sm ring-1 ring-gray-950/5 dark:bg-gray-900 dark:ring-white/10">
         <div class="flex items-center justify-between p-4">
             <div>
@@ -20,4 +20,4 @@
             </div>
         </div>
     </div>
-</div>
+</x-filament-widgets::widget>
