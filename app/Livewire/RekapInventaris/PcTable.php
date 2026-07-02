@@ -3,6 +3,7 @@
 namespace App\Livewire\RekapInventaris;
 
 use App\Models\RekapInventarisPc;
+use App\Models\RekapInventarisPcNote;
 use Filament\Forms\Get;
 use Filament\Tables;
 use Filament\Tables\Table;
@@ -63,7 +64,7 @@ class PcTable extends Component implements HasForms, HasTable
             ->query(
                 RekapInventarisPc::query()
                     ->where('rekap_inventaris_periode_id', $this->periodeId)
-                    ->with('spec.details')
+                    ->with(['spec.details', 'notes'])
                     ->orderByRaw('CAST(SUBSTRING(no_pc, 2) AS UNSIGNED)')
             )
             ->heading('Rekap PC')
@@ -131,27 +132,28 @@ class PcTable extends Component implements HasForms, HasTable
                     ->visible(!auth()->user()->hasRole('super_admin'))
                     ->fillForm(function (RekapInventarisPc $record): array {
                         $details = [];
+                        // Load per-PC notes (keterangan yang tidak shared) — key by komponen
+                        $pcNotes = $record->notes->keyBy('komponen');
 
                         foreach ($record->spec?->details ?? [] as $detail) {
                             $map = [
-                                'Motherboard' => 1,
-                                'Processor' => 2,
-                                'Hardisk' => 3,
-                                'VGA' => 4,
-                                'RAM' => 5,
-                                'DVD' => 6,
-                                'Keyboard' => 7,
-                                'Mouse' => 8,
-                                'Monitor' => 9,
+                                'Motherboard' => 1, 'Processor' => 2, 'Hardisk' => 3, 'VGA' => 4,
+                                'RAM' => 5, 'DVD' => 6, 'Keyboard' => 7, 'Mouse' => 8, 'Monitor' => 9,
                             ];
 
                             $index = $map[$detail->komponen] ?? null;
 
                             if ($index) {
+                                // Prioritaskan catatan dari pc_notes, fallback ke spec detail
+                                $pcNote = $pcNotes->get($detail->komponen);
+                                $catatan = $pcNote
+                                    ? ($pcNote->catatan_kondisi ?? '')
+                                    : ($detail->catatan_kondisi ?? '');
+
                                 $details[$index] = [
-                                    'detail' => $detail->detail,
-                                    'kondisi' => $detail->kondisi,
-                                    'catatan_kondisi' => $detail->catatan_kondisi,
+                                    'detail'          => $detail->detail,
+                                    'kondisi'         => $detail->kondisi,
+                                    'catatan_kondisi' => $catatan,
                                 ];
                             }
                         }
@@ -255,6 +257,9 @@ class PcTable extends Component implements HasForms, HasTable
                                 'lokasi' => $data['lokasi'] ?? $record->lokasi,
                                 'kondisi' => $data['kondisi'],
                             ]);
+
+                            // Spec baru dibuat — simpan catatan_kondisi per-PC ke pc_notes
+                            $this->saveNotesForPc($record, $data['spec_details'] ?? []);
                         }
 
                         $service->syncPeriodSpecOrder($periodeId);
@@ -550,6 +555,28 @@ class PcTable extends Component implements HasForms, HasTable
         return $prefix . str_pad((string) $number, 2, '0', STR_PAD_LEFT);
     }
 
+    protected function saveNotesForPc(RekapInventarisPc $record, array $details): void
+    {
+        $map = [
+            1 => 'Motherboard', 2 => 'Processor', 3 => 'Hardisk', 4 => 'VGA',
+            5 => 'RAM', 6 => 'DVD', 7 => 'Keyboard', 8 => 'Mouse', 9 => 'Monitor',
+        ];
+
+        foreach ($map as $index => $komponen) {
+            $catatan = trim((string) ($details[$index]['catatan_kondisi'] ?? ''));
+            if ($catatan !== '') {
+                RekapInventarisPcNote::updateOrCreate(
+                    ['rekap_inventaris_pc_id' => $record->id, 'komponen' => $komponen],
+                    ['catatan_kondisi' => $catatan]
+                );
+            } else {
+                RekapInventarisPcNote::where('rekap_inventaris_pc_id', $record->id)
+                    ->where('komponen', $komponen)
+                    ->delete();
+            }
+        }
+    }
+
     protected function updateSpecDetails(RekapInventarisPc $record, array $details): void
     {
         if (! $record->spec) {
@@ -576,11 +603,25 @@ class PcTable extends Component implements HasForms, HasTable
                 continue;
             }
 
+            // Simpan kondisi & detail ke spec (shared) — tanpa catatan_kondisi
             $detailRecord->update([
-                'detail' => trim((string) ($details[$index]['detail'] ?? '')),
+                'detail'  => trim((string) ($details[$index]['detail'] ?? '')),
                 'kondisi' => $details[$index]['kondisi'] ?? null,
-                'catatan_kondisi' => trim((string) ($details[$index]['catatan_kondisi'] ?? '')),
             ]);
+
+            // Simpan catatan_kondisi ke tabel pc_notes (per-PC, tidak shared)
+            $catatan = trim((string) ($details[$index]['catatan_kondisi'] ?? ''));
+            if ($catatan !== '') {
+                RekapInventarisPcNote::updateOrCreate(
+                    ['rekap_inventaris_pc_id' => $record->id, 'komponen' => $komponen],
+                    ['catatan_kondisi' => $catatan]
+                );
+            } else {
+                // Hapus catatan jika dikosongkan
+                RekapInventarisPcNote::where('rekap_inventaris_pc_id', $record->id)
+                    ->where('komponen', $komponen)
+                    ->delete();
+            }
         }
     }
 

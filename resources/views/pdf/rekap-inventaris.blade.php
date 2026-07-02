@@ -126,6 +126,8 @@
             @foreach($pcs as $index => $pc)
                 @php
                     $details = collect($pc->spec?->details ?? [])->keyBy('komponen');
+                    // Keterangan per-PC (override spec yang shared) — key by komponen
+                    $pcNotes = collect($pc->notes ?? [])->keyBy('komponen');
                 @endphp
                 <tr>
                     <td>{{ $pc->no_pc }}</td>
@@ -134,7 +136,13 @@
                             $detail = $details->get($comp);
                             $kondisi = $detail ? $detail->kondisi : '-';
                             if ($kondisi === '' || $kondisi === null) $kondisi = '-';
-                            $keterangan = $detail ? $detail->catatan_kondisi : '';
+
+                            // Prioritaskan catatan dari tabel pc_notes (per-PC).
+                            // Fallback ke catatan_kondisi di spec_detail hanya jika tidak ada di pc_notes.
+                            $pcNote = $pcNotes->get($comp);
+                            $keterangan = $pcNote
+                                ? ($pcNote->catatan_kondisi ?? '')
+                                : ($detail ? ($detail->catatan_kondisi ?? '') : '');
                             
                             $colorClass = match($kondisi) {
                                 'Baik' => 'c-baik',

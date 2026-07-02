@@ -113,9 +113,7 @@ class RekapInventaris extends Page implements HasForms, HasActions
                     $this->periodeId = null;
                 }
             } else {
-                // Laboran: boleh auto-create periode
-                $periode = $this->getOrCreatePeriode($this->bulan, $this->tahun, $this->laboratoriumId);
-                $this->periodeId = $periode->id;
+                $this->syncPeriodeForCurrentLab();
             }
         }
 
@@ -171,13 +169,7 @@ class RekapInventaris extends Page implements HasForms, HasActions
                                 $this->laboratoriumId = $state;
                                 $labInfo = Laboratorium::find($this->laboratoriumId);
                                 $this->laboratoriumNama = $labInfo?->ruang;
-                                
-                                $periode = RekapInventarisPeriode::where('laboratorium_id', $this->laboratoriumId)
-                                    ->where('bulan', $this->bulan)
-                                    ->where('tahun', $this->tahun)
-                                    ->first();
-                                
-                                $this->periodeId = $periode ? $periode->id : null;
+                                $this->syncPeriodeForCurrentLab();
                             }),
                     ]),
             ])
@@ -215,17 +207,7 @@ class RekapInventaris extends Page implements HasForms, HasActions
                 ->action(function (array $data) {
                     $this->bulan = (int) $data['bulan'];
                     $this->tahun = (int) $data['tahun'];
-
-                    $periode = RekapInventarisPeriode::where('laboratorium_id', $this->laboratoriumId)
-                        ->where('bulan', $this->bulan)
-                        ->where('tahun', $this->tahun)
-                        ->first();
-
-                    if ($periode) {
-                        $this->periodeId = $periode->id;
-                    } else {
-                        $this->periodeId = null;
-                    }
+                    $this->syncPeriodeForCurrentLab();
                 }),
 
             \Filament\Actions\ActionGroup::make([
@@ -277,7 +259,7 @@ class RekapInventaris extends Page implements HasForms, HasActions
                 ->modalHeading('Sinkronisasi Data PC dari Master')
                 ->modalDescription('Proses ini akan menarik data PC dari master Inventaris sesuai laboratorium yang dipilih. PC yang belum ada pada rekap bulan ini akan ditambahkan otomatis dengan kondisi "Baik".')
                 ->modalSubmitActionLabel('Ya, Sinkronisasi')
-                ->visible(fn() => $this->periodeId !== null && ! $this->isPeriodCompletelyEmpty($this->periodeId))
+                ->visible(fn() => $this->periodeId !== null && ! $this->isPeriodCompletelyEmpty($this->periodeId) && !auth()->user()->hasRole('super_admin'))
                 ->action(function () {
                     $this->doSinkronisasi();
                 }),
@@ -300,7 +282,7 @@ class RekapInventaris extends Page implements HasForms, HasActions
     {
         $periode = RekapInventarisPeriode::with('laboratorium')->findOrFail($this->periodeId);
         $pcs = RekapInventarisPc::where('rekap_inventaris_periode_id', $this->periodeId)
-            ->with(['spec.details'])
+            ->with(['spec.details', 'notes'])
             ->orderByRaw('CAST(SUBSTRING(no_pc, 2) AS UNSIGNED)')
             ->get();
 
@@ -414,6 +396,29 @@ class RekapInventaris extends Page implements HasForms, HasActions
         return $this->getNamaPeriode($this->bulan, $this->tahun);
     }
 
+    protected function syncPeriodeForCurrentLab(): void
+    {
+        if (! $this->laboratoriumId) {
+            $this->periodeId = null;
+
+            return;
+        }
+
+        if (auth()->user()->hasRole('super_admin')) {
+            $periode = RekapInventarisPeriode::where('laboratorium_id', $this->laboratoriumId)
+                ->where('bulan', $this->bulan)
+                ->where('tahun', $this->tahun)
+                ->first();
+
+            $this->periodeId = $periode?->id;
+
+            return;
+        }
+
+        $periode = $this->getOrCreatePeriode($this->bulan, $this->tahun, $this->laboratoriumId);
+        $this->periodeId = $periode->id;
+    }
+
     protected function getOrCreatePeriode(int $bulan, int $tahun, ?int $labId): RekapInventarisPeriode
     {
         return RekapInventarisPeriode::firstOrCreate(
@@ -512,6 +517,7 @@ class RekapInventaris extends Page implements HasForms, HasActions
             ->label('Copy Bulan Lalu')
             ->icon('heroicon-o-document-duplicate')
             ->color('warning')
+            ->visible(fn() => !auth()->user()->hasRole('super_admin'))
             ->requiresConfirmation()
             ->action(function () {
                 $currentPeriod = RekapInventarisPeriode::findOrFail($this->periodeId);
@@ -536,6 +542,7 @@ class RekapInventaris extends Page implements HasForms, HasActions
             ->label('Sinkronisasi Data PC')
             ->icon('heroicon-o-arrow-path')
             ->color('success')
+            ->visible(fn() => !auth()->user()->hasRole('super_admin'))
             ->requiresConfirmation()
             ->modalHeading('Sinkronisasi Data PC dari Master')
             ->modalDescription('Proses ini akan menarik data PC dari master Inventaris sesuai laboratorium yang dipilih. PC yang belum ada pada rekap bulan ini akan ditambahkan otomatis dengan kondisi "Baik".')

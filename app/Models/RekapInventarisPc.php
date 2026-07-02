@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Activitylog\Traits\LogsActivity;
 use Spatie\Activitylog\LogOptions;
 
@@ -38,5 +39,22 @@ class RekapInventarisPc extends Model
     public function spec(): BelongsTo
     {
         return $this->belongsTo(RekapInventarisSpec::class, 'rekap_inventaris_spec_id');
+    }
+
+    /**
+     * Catatan/keterangan per komponen yang spesifik untuk PC ini.
+     * Dipisah dari spec agar tidak tercampur antar PC yang share spec yang sama.
+     */
+    public function notes(): HasMany
+    {
+        return $this->hasMany(RekapInventarisPcNote::class, 'rekap_inventaris_pc_id');
+    }
+
+    /**
+     * Ambil catatan untuk komponen tertentu. Return null jika tidak ada.
+     */
+    public function getNoteForKomponen(string $komponen): ?string
+    {
+        return $this->notes->firstWhere('komponen', $komponen)?->catatan_kondisi;
     }
 }
