@@ -1,106 +1,225 @@
-# SIOPAL - Sistem Informasi Operasional Laboratorium
+# SIOPAL UDINUS — Sistem Informasi Operasional Laboratorium
 
-Aplikasi Sistem Informasi Manajemen Laboratorium (SIOPAL) berbasis Laravel dan Filament. Repository ini berisi kodingan sistem secara penuh beserta seeder otomatis (mengambil data real hardware & laboran dari Excel) guna memudahkan proses instalasi awal.
+Aplikasi manajemen laboratorium komputer berbasis web, dibangun dengan **Laravel 12** dan **Filament 3**.
 
-## 🚀 Instalasi untuk Developer (Cara Cloning Project)
+---
 
-Ikuti langkah-langkah di bawah ini jika kamu baru pertama kali melakukan clone pada repository ini.
+## Tech Stack
 
-### 1. Clone Repository & Masuk ke Folder Project
+- PHP 8.2+
+- Laravel 12
+- Filament 3 (admin panel)
+- MySQL
+- Composer
+- Node.js & NPM (untuk asset build)
+
+---
+
+## Prerequisites
+
+Pastikan sudah terinstall di mesin kamu:
+
+| Tool | Versi Minimum |
+|------|--------------|
+| PHP | 8.2 |
+| Composer | 2.x |
+| Node.js | 18.x |
+| NPM | 9.x |
+| MySQL | 5.7 / 8.0 |
+| Git | any |
+
+> Rekomendasi: gunakan [Laragon](https://laragon.org/) (Windows) atau [Herd](https://herd.laravel.com/) sebagai local dev environment.
+
+---
+
+## Clone Project (Fresh Setup)
+
+Gunakan langkah ini jika kamu **belum punya** salinan project di lokal.
+
+### 1. Clone Repository
+
 ```bash
-git clone [URL_REPOSITORI_SIOPAL]
-cd KP-NEW
+git clone https://github.com/USERNAME/REPO_NAME.git
+cd REPO_NAME
 ```
 
-### 2. Instalasi Dependensi Backend (PHP / Laravel)
-Pastikan kamu menggunakan PHP versi 8.2 ke atas dan telah menginstal Composer.
+### 2. Install PHP Dependencies
+
 ```bash
 composer install
 ```
-*(Proses ini akan mengunduh vendor-vendor laravel yang dibutuhkan).*
 
-### 3. Instalasi Dependensi Frontend (Node.js / NPM)
-Pastikan kamu telah menginstal Node.js.
+### 3. Install Node Dependencies
+
 ```bash
 npm install
-npm run build
 ```
-*(Untuk keperluan kompilasi aset Laravel Vite).*
 
-### 4. Konfigurasi Environment & Database
-Salin file konfigurasi *.env.example* menjadi *.env*.
+### 4. Konfigurasi Environment
+
 ```bash
 cp .env.example .env
-```
-Setelah itu, buat application key:
-```bash
 php artisan key:generate
 ```
-Buka file `.env` kamu di editor (VS Code dll), lalu sesuaikan konfigurasi koneksi database:
-```dotenv
+
+Buka file `.env` dan sesuaikan konfigurasi database:
+
+```env
+APP_NAME=SIOPAL
+APP_URL=http://localhost
+
 DB_CONNECTION=mysql
 DB_HOST=127.0.0.1
 DB_PORT=3306
-DB_DATABASE=nama_database_kamu
+DB_DATABASE=siopal_udinus2
 DB_USERNAME=root
 DB_PASSWORD=
 ```
-*Pastikan kamu sudah membuat database kosong (contoh: `nama_database_kamu`) melalui phpMyAdmin, HeidiSQL, atau DBeaver di lokal kamu.*
 
-### 5. Proses Auto-Seeding (Migrasi Tabel beserta Data Excel)
-Jalankan perintah ajaib ini untuk menyusun seluruh database beserta data master dari *seeders*, termasuk import data PC (560 PC Real) & data Laboran dari Excel:
-```bash
-php artisan migrate:fresh --seed
+### 5. Buat Database
+
+Buat database di MySQL dengan nama yang sama seperti `DB_DATABASE` di `.env`:
+
+```sql
+CREATE DATABASE siopal_udinus2;
 ```
-📝 **Catatan Penting saat Menjalankan `migrate:fresh --seed`:**
-- Proses ini aman karena *script* Python secara pintar membaca isi _spreadsheet Excel_ kamu dari direktori `database/imports/`.
-- Jangan menghapus file `Data_Laboran_2026-06-30.xlsx` maupun `template_import_inventaris_pc_siopal_560.xlsx` di keranjang folder penyimpanan tersebut. Jika kebetulan terhapus, seeder akan melewatinya begitu saja (tanpa layar *Error Red* panjang).
 
-### 6. Jalankan Aplikasi
-Jalankan development server Laravel:
+### 6. Jalankan Migrasi & Seeder
+
+```bash
+php artisan migrate
+php artisan db:seed
+```
+
+### 7. Build Assets
+
+```bash
+npm run build
+```
+
+### 8. Jalankan Aplikasi
+
 ```bash
 php artisan serve
 ```
-Akses aplikasi melalui *browser* pada halaman admin:
-👉 `http://127.0.0.1:8000/admin`
+
+Akses aplikasi di: **http://localhost:8000/admin**
 
 ---
 
-## 👨‍💻 Info Akun / Kredensial Login
-Akun dengan Level **Super Admin** yang *include* secara otomatis saat seeding:
-- **Email:** `admin@mail.com`
-- **Password:** `password`
+## Git Pull (Update Project yang Sudah Ada)
 
-Sedangkan untuk akun tiap **Laboran** *(default hasil tarikan data import)*:
-- **Password:** `password123`
+Gunakan langkah ini jika kamu **sudah punya** project di lokal dan ingin mengambil perubahan terbaru.
 
----
-
-## 🔄 Pemeliharaan Update (Cara Melakukan Git Pull Terstruktur)
-
-Jika kamu ingin melakukan tarikan kode dari *branch origin* ketika ada rilis pembaruan baru atau mengambil pekerjaan temanmu, gunakan alur ini:
+### 1. Pastikan Tidak Ada Perubahan Lokal yang Belum Disimpan
 
 ```bash
-# 1. Tarik pembaruan repo
+git status
+```
+
+Jika ada perubahan yang belum ingin di-commit, simpan dulu dengan stash:
+
+```bash
+git stash
+```
+
+### 2. Pull Perubahan Terbaru
+
+```bash
 git pull origin main
+```
 
-# 2. Perbarui dependency jika sewaktu-waktu bertambah
+> Ganti `main` dengan nama branch yang kamu gunakan jika berbeda (misalnya `master` atau `develop`).
+
+### 3. Update PHP Dependencies
+
+Jalankan ini jika ada perubahan di `composer.json`:
+
+```bash
 composer install
-npm install
-npm run build
+```
 
-# 3. Jalankan migrasi agar skema tabel tersinkronisasi 
-# (Gunakan migrate apabila TIDAK ingin menghapus datamu, HANYA men-update struktur tabel)
+### 4. Update Node Dependencies
+
+Jalankan ini jika ada perubahan di `package.json`:
+
+```bash
+npm install
+```
+
+### 5. Jalankan Migrasi Terbaru
+
+```bash
 php artisan migrate
 ```
-Jika sistem koding terbaru membutuhkan data reset besar-besaran (contoh: *fresh installation*):
+
+### 6. Clear Cache
+
 ```bash
-php artisan migrate:fresh --seed
+php artisan optimize:clear
 ```
 
-### Lingkungan Requirement
-*   PHP ^8.2
-*   Node.js ^18.x / ^20.x
-*   MySQL 8+ atau MariaDB 10+
-*   Ekstensi PHP (WAJIB ENABLE): `pdo_mysql`, `mbstring`, `gd`, `intl`, `bcmath`, `zip`.
-*   Python ^3.x (Diperlukan oleh sistem seeder untuk melakukan konversi data file master `.xlsx`).
+### 7. Build Ulang Assets
+
+```bash
+npm run build
+```
+
+### 8. (Opsional) Kembalikan Stash
+
+Jika tadi menyimpan perubahan lokal:
+
+```bash
+git stash pop
+```
+
+---
+
+## Struktur Role
+
+| Role | Akses |
+|------|-------|
+| `super_admin` | Akses penuh ke semua fitur |
+| `Laboran_X` | Akses terbatas — dashboard, jadwal, rekap inventaris lab X, pelaporan PTPP |
+
+> `X` adalah kode lab, contoh: `Laboran_A`, `Laboran_D2K`
+
+---
+
+## Perintah Berguna
+
+```bash
+# Jalankan server development
+php artisan serve
+
+# Lihat semua route
+php artisan route:list
+
+# Reset & seed ulang database
+php artisan migrate:fresh --seed
+
+# Clear semua cache
+php artisan optimize:clear
+
+# Buat shield permissions (Filament)
+php artisan shield:generate --all
+```
+
+---
+
+## Troubleshooting
+
+**Error: `SQLSTATE[HY000] [1049] Unknown database`**
+→ Pastikan database sudah dibuat dan nama di `.env` sesuai.
+
+**Error: `php artisan key:generate` tidak bisa dijalankan**
+→ Pastikan file `.env` sudah ada (`cp .env.example .env`).
+
+**Halaman `/admin` menampilkan 404**
+→ Jalankan `php artisan route:clear` lalu coba lagi.
+
+**Asset tidak muncul (CSS/JS kosong)**
+→ Jalankan `npm run build` atau `npm run dev` untuk development.
+
+**Error setelah `git pull`**
+→ Coba jalankan `composer install` dan `php artisan migrate` ulang.
