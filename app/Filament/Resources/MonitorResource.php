@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\MonitorResource\Pages;
 use App\Models\Monitor;
+use App\Filament\Resources\Concerns\HasHardwareAccess;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -14,51 +15,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class MonitorResource extends Resource
 {
+    use HasHardwareAccess;
+
     protected static ?string $model = Monitor::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-computer-desktop';
-
     protected static ?string $slug = 'monitor';
-
     protected static ?string $navigationLabel = 'Monitor';
-
     protected static ?string $modelLabel = 'Monitor';
-
     protected static ?string $navigationGroup = 'Data Hardware';
-
     protected static ?int $navigationSort = 9;
-
-    protected static function canManageHardware(): bool
-    {
-        $user = auth()->user();
-
-        return $user && $user->hasRole('super_admin');
-    }
-
-    public static function shouldRegisterNavigation(): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canCreate(): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canEdit(Model $record): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canDelete(Model $record): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canDeleteAny(): bool
-    {
-        return static::canManageHardware();
-    }
 
     public static function form(Form $form): Form
     {

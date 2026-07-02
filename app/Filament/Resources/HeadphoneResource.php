@@ -2,64 +2,31 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Clusters\AllHardware;
 use App\Filament\Resources\HeadphoneResource\Pages;
-use App\Filament\Resources\HeadphoneResource\RelationManagers;
+use App\Filament\Resources\Concerns\HasHardwareAccess;
 use App\Models\Headphone;
 use Filament\Forms;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
-use Filament\Pages\SubNavigationPosition;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class HeadphoneResource extends Resource
 {
-    public static function shouldRegisterNavigation(): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canCreate(): bool
-    {
-        return !auth()->user()->hasRole('super_admin');
-    }
-
-    public static function canEdit(Model $record): bool
-    {
-        return !auth()->user()->hasRole('super_admin');
-    }
-
-    public static function canDelete(Model $record): bool
-    {
-        return !auth()->user()->hasRole('super_admin');
-    }
-
-    public static function canDeleteAny(): bool
-    {
-        return !auth()->user()->hasRole('super_admin');
-    }
+    use HasHardwareAccess;
 
     protected static ?string $model = Headphone::class;
-
     protected static ?string $navigationIcon = 'heroicon-o-speaker-wave';
-
     protected static ?string $slug = 'headphone';
-
     protected static ?string $navigationLabel = 'Headphone';
-
     protected static ?string $modelLabel = 'Headphone';
-
     protected static ?string $navigationGroup = 'Data Hardware';
-
     protected static ?int $navigationSort = 11;
 
     public static function form(Form $form): Form

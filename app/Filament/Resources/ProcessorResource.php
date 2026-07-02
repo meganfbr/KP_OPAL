@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\ProcessorResource\Pages;
 use App\Models\Processor;
+use App\Filament\Resources\Concerns\HasHardwareAccess;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -14,51 +15,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProcessorResource extends Resource
 {
+    use HasHardwareAccess;
+
     protected static ?string $model = Processor::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-cpu-chip';
-
     protected static ?string $slug = 'processor';
-
     protected static ?string $navigationLabel = 'Processor';
-
     protected static ?string $modelLabel = 'Processor';
-
     protected static ?string $navigationGroup = 'Data Hardware';
-
     protected static ?int $navigationSort = 2;
-
-    protected static function canManageHardware(): bool
-    {
-        $user = auth()->user();
-
-        return $user && $user->hasRole('super_admin');
-    }
-
-    public static function shouldRegisterNavigation(): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canCreate(): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canEdit(Model $record): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canDelete(Model $record): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canDeleteAny(): bool
-    {
-        return static::canManageHardware();
-    }
 
     public static function form(Form $form): Form
     {

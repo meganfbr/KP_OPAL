@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\VGAResource\Pages;
 use App\Models\VGA;
+use App\Filament\Resources\Concerns\HasHardwareAccess;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -14,51 +15,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class VGAResource extends Resource
 {
+    use HasHardwareAccess;
+
     protected static ?string $model = VGA::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-tv';
-
     protected static ?string $slug = 'vga';
-
     protected static ?string $navigationLabel = 'VGA';
-
     protected static ?string $modelLabel = 'VGA';
-
     protected static ?string $navigationGroup = 'Data Hardware';
-
     protected static ?int $navigationSort = 4;
-
-    protected static function canManageHardware(): bool
-    {
-        $user = auth()->user();
-
-        return $user && $user->hasRole('super_admin');
-    }
-
-    public static function shouldRegisterNavigation(): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canCreate(): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canEdit(Model $record): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canDelete(Model $record): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canDeleteAny(): bool
-    {
-        return static::canManageHardware();
-    }
 
     public static function form(Form $form): Form
     {

@@ -4,6 +4,7 @@ namespace App\Filament\Resources;
 
 use App\Filament\Resources\KeyboardResource\Pages;
 use App\Models\Keyboard;
+use App\Filament\Resources\Concerns\HasHardwareAccess;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -14,51 +15,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class KeyboardResource extends Resource
 {
+    use HasHardwareAccess;
+
     protected static ?string $model = Keyboard::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-command-line';
-
     protected static ?string $slug = 'keyboard';
-
     protected static ?string $navigationLabel = 'Keyboard';
-
     protected static ?string $modelLabel = 'Keyboard';
-
     protected static ?string $navigationGroup = 'Data Hardware';
-
     protected static ?int $navigationSort = 7;
-
-    protected static function canManageHardware(): bool
-    {
-        $user = auth()->user();
-
-        return $user && $user->hasRole('super_admin');
-    }
-
-    public static function shouldRegisterNavigation(): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canCreate(): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canEdit(Model $record): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canDelete(Model $record): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canDeleteAny(): bool
-    {
-        return static::canManageHardware();
-    }
 
     public static function form(Form $form): Form
     {

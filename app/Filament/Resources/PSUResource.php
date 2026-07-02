@@ -2,64 +2,29 @@
 
 namespace App\Filament\Resources;
 
-use App\Filament\Clusters\AllHardware;
 use App\Filament\Resources\PSUResource\Pages;
-use App\Filament\Resources\PSUResource\RelationManagers;
+use App\Filament\Resources\Concerns\HasHardwareAccess;
 use App\Models\PSU;
 use Filament\Forms;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Form;
-use Filament\Pages\SubNavigationPosition;
 use Filament\Resources\Resource;
 use Filament\Tables;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
-use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\SoftDeletingScope;
 
 class PSUResource extends Resource
 {
-    public static function shouldRegisterNavigation(): bool
-    {
-        return static::canManageHardware();
-    }
-
-    public static function canCreate(): bool
-    {
-        return !auth()->user()->hasRole('super_admin');
-    }
-
-    public static function canEdit(Model $record): bool
-    {
-        return !auth()->user()->hasRole('super_admin');
-    }
-
-    public static function canDelete(Model $record): bool
-    {
-        return !auth()->user()->hasRole('super_admin');
-    }
-
-    public static function canDeleteAny(): bool
-    {
-        return !auth()->user()->hasRole('super_admin');
-    }
+    use HasHardwareAccess;
 
     protected static ?string $model = PSU::class;
-
     protected static ?string $navigationIcon = 'heroicon-o-cube';
-
     protected static ?string $slug = 'psu';
-
     protected static ?string $navigationLabel = 'PSU';
-
     protected static ?string $modelLabel = 'PSU';
-
     protected static ?string $navigationGroup = 'Data Hardware';
-
-    // protected static ?string $cluster = AllHardware::class;
-
     protected static ?int $navigationSort = 7;
 
     public static function form(Form $form): Form

@@ -271,7 +271,7 @@ class AdminPanelProvider extends PanelProvider
                 $hardwareItems = [];
 
                 // Motherboard
-                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'motherboard')) {
+                if ($user->hasRole('super_admin') || $user->can('view-navigation-item', 'motherboard')) {
                     $hardwareItems[] = NavigationItem::make('Motherboard')
                         ->icon('heroicon-o-cpu-chip')
                         ->url(\App\Filament\Resources\MotherboardResource::getUrl())
@@ -279,7 +279,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Processor
-                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'processor')) {
+                if ($user->hasRole('super_admin') || $user->can('view-navigation-item', 'processor')) {
                     $hardwareItems[] = NavigationItem::make('Processor')
                         ->icon('heroicon-o-cpu-chip')
                         ->url(\App\Filament\Resources\ProcessorResource::getUrl())
@@ -287,7 +287,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // RAM
-                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'r::a::m')) {
+                if ($user->hasRole('super_admin') || $user->can('view-navigation-item', 'r::a::m')) {
                     $hardwareItems[] = NavigationItem::make('RAM')
                         ->icon('heroicon-o-server-stack')
                         ->url(\App\Filament\Resources\RAMResource::getUrl())
@@ -295,7 +295,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // VGA
-                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'v::g::a')) {
+                if ($user->hasRole('super_admin') || $user->can('view-navigation-item', 'v::g::a')) {
                     $hardwareItems[] = NavigationItem::make('VGA')
                         ->icon('heroicon-o-chart-bar')
                         ->url(\App\Filament\Resources\VGAResource::getUrl())
@@ -303,7 +303,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Penyimpanan
-                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'penyimpanan')) {
+                if ($user->hasRole('super_admin') || $user->can('view-navigation-item', 'penyimpanan')) {
                     $hardwareItems[] = NavigationItem::make('Penyimpanan')
                         ->icon('heroicon-o-circle-stack')
                         ->url(\App\Filament\Resources\PenyimpananResource::getUrl())
@@ -311,7 +311,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // DVD
-                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'd::v::d')) {
+                if ($user->hasRole('super_admin') || $user->can('view-navigation-item', 'd::v::d')) {
                     $hardwareItems[] = NavigationItem::make('DVD')
                         ->icon('heroicon-o-document')
                         ->url(\App\Filament\Resources\DVDResource::getUrl())
@@ -319,7 +319,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // PSU
-                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'p::s::u')) {
+                if ($user->hasRole('super_admin') || $user->can('view-navigation-item', 'p::s::u')) {
                     $hardwareItems[] = NavigationItem::make('PSU')
                         ->icon('heroicon-o-cube')
                         ->url(\App\Filament\Resources\PSUResource::getUrl())
@@ -327,7 +327,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Keyboard
-                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'keyboard')) {
+                if ($user->hasRole('super_admin') || $user->can('view-navigation-item', 'keyboard')) {
                     $hardwareItems[] = NavigationItem::make('Keyboard')
                         ->icon('heroicon-o-command-line')
                         ->url(\App\Filament\Resources\KeyboardResource::getUrl())
@@ -335,7 +335,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Mouse
-                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'mouse')) {
+                if ($user->hasRole('super_admin') || $user->can('view-navigation-item', 'mouse')) {
                     $hardwareItems[] = NavigationItem::make('Mouse')
                         ->icon('heroicon-o-cursor-arrow-rays')
                         ->url(\App\Filament\Resources\MouseResource::getUrl())
@@ -343,7 +343,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Monitor
-                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'monitor')) {
+                if ($user->hasRole('super_admin') || $user->can('view-navigation-item', 'monitor')) {
                     $hardwareItems[] = NavigationItem::make('Monitor')
                         ->icon('heroicon-o-tv')
                         ->url(\App\Filament\Resources\MonitorResource::getUrl())
@@ -351,7 +351,7 @@ class AdminPanelProvider extends PanelProvider
                 }
 
                 // Headphone
-                if ($user->hasRole('super_admin') || $isLaboran || $user->can('view-navigation-item', 'headphone')) {
+                if ($user->hasRole('super_admin') || $user->can('view-navigation-item', 'headphone')) {
                     $hardwareItems[] = NavigationItem::make('Headphone')
                         ->icon('heroicon-o-speaker-wave')
                         ->url(\App\Filament\Resources\HeadphoneResource::getUrl())
